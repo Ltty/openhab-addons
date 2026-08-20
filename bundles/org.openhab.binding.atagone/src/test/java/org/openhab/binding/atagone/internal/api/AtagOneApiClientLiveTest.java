@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Objects;
 
-import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jetty.client.HttpClient;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,7 +39,6 @@ import org.slf4j.LoggerFactory;
  *
  * @author Florian Lettner - Initial contribution
  */
-@NonNullByDefault({})
 @EnabledIfSystemProperty(named = "atag.host", matches = ".+")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AtagOneApiClientLiveTest {

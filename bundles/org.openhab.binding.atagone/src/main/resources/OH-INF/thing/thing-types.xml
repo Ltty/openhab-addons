@@ -4,45 +4,18 @@
 	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
 	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
 
-	<!-- Sample Thing Type -->
-	<thing-type id="sample">
-		<!-- Comment this in for Things which need a Bridge to function.
-			<supported-bridge-type-refs>
-			<bridge-type-ref id="AtagOneBridge" />
-			</supported-bridge-type-refs>
-		-->
-
-		<label>AtagOne Binding Thing</label>
-		<description>Sample thing for AtagOne Binding</description>
+	<thing-type id="thermostat">
+		<label>ATAG ONE Thermostat</label>
+		<description>ATAG ONE smart thermostat — auto-discovered via UDP broadcast or configured manually.</description>
+		<semantic-equipment-tag>Thermostat</semantic-equipment-tag>
 
 		<channels>
-			<channel id="channel1" typeId="sample-channel"/>
+			<!-- Channels are defined in Phase 5. -->
 		</channels>
 
-		<config-description>
-			<parameter name="hostname" type="text" required="true">
-				<context>network-address</context>
-				<label>Hostname</label>
-				<description>Hostname or IP address of the device</description>
-			</parameter>
-			<parameter name="password" type="text" required="true">
-				<context>password</context>
-				<label>Password</label>
-				<description>Password to access the device</description>
-			</parameter>
-			<parameter name="refreshInterval" type="integer" unit="s" min="1">
-				<label>Refresh Interval</label>
-				<description>Interval the device is polled in sec.</description>
-				<default>600</default>
-				<advanced>true</advanced>
-			</parameter>
-		</config-description>
+		<representation-property>deviceId</representation-property>
+
+		<config-description-ref uri="thing-type:atagone:thermostat"/>
 	</thing-type>
 
-	<!-- Sample Channel Type -->
-	<channel-type id="sample-channel">
-		<item-type>Number:Temperature</item-type>
-		<label>Example Temperature</label><!-- Use uppercase words, except prepositions. 2-3 words, max 25 chars -->
-		<description>Sample channel for AtagOne Binding</description>
-	</channel-type>
 </thing:thing-descriptions>
