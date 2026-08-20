@@ -9,10 +9,6 @@
 		<description>ATAG ONE smart thermostat — auto-discovered via UDP broadcast or configured manually.</description>
 		<semantic-equipment-tag>Thermostat</semantic-equipment-tag>
 
-		<channels>
-			<!-- Channels are defined in Phase 5. -->
-		</channels>
-
 		<representation-property>deviceId</representation-property>
 
 		<config-description-ref uri="thing-type:atagone:thermostat"/>
