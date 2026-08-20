@@ -131,6 +131,7 @@ public class AtagOneApiClient {
         root.add("retrieve_message", retrieveMsg);
 
         String responseJson = sendRequest("/retrieve", gson.toJson(root));
+        logger.info("retrieve raw response: {}", responseJson);
         JsonObject reply = JsonParser.parseString(responseJson).getAsJsonObject().getAsJsonObject("retrieve_reply");
         if (reply == null) {
             throw new AtagOneCommunicationException("Missing retrieve_reply in response: " + responseJson);

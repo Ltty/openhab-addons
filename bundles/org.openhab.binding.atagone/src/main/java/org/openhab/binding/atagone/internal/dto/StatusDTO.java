@@ -21,9 +21,11 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault({})
 public class StatusDTO {
-    public long date;
-    public long time;
+    /** Device timestamp (ATAG epoch: seconds since 2000-01-01 UTC). */
+    public long date_time;
     public String device_id = "";
-    public String download_url = "";
-    public String binds_to_mac = "";
+    /** Device status bitmask (firmware-internal). */
+    public int device_status;
+    /** Connection status bitmask. */
+    public int connection_status;
 }

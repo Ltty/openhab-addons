@@ -23,12 +23,16 @@ import org.eclipse.jdt.annotation.Nullable;
  */
 @NonNullByDefault({})
 public class DeviceConfigUpdateDTO {
-    public @Nullable Double ch_vacation_temp;
-    public @Nullable Integer frost_prot;
-    public @Nullable Double frost_prot_temp;
-    public @Nullable Integer summer_eco_mode;
-    public @Nullable Double summer_eco_temp;
-    public @Nullable Integer legionella_prot;
     /** Vacation start in ATAG epoch (seconds since 2000-01-01 UTC). */
     public @Nullable Long start_vacation;
+    public @Nullable Double ch_vacation_temp;
+    public @Nullable Integer frost_prot_enabled;
+    public @Nullable Double frost_prot_temp_room;
+    public @Nullable Integer summer_eco_mode;
+    public @Nullable Double summer_eco_temp;
+    public @Nullable Integer dhw_legion_enabled;
+    public @Nullable Integer disp_brightness;
+    public @Nullable Double room_temp_offs;
+    public @Nullable Double outs_temp_offs;
+    public @Nullable Integer privacy_mode;
 }

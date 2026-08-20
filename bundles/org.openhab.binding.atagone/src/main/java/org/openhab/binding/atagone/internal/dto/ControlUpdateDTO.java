@@ -35,6 +35,4 @@ public class ControlUpdateDTO {
     public @Nullable Long extend_duration;
     public @Nullable Long fireplace_duration;
     public @Nullable Long vacation_duration;
-    /** Vacation start in ATAG epoch (seconds since 2000-01-01 UTC). */
-    public @Nullable Long start_vacation;
 }

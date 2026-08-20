@@ -24,7 +24,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault({})
 public class ControlDTO {
-    /** CH circuit active (1=active). */
+    /** CH circuit status bitmask (firmware-internal). */
     public int ch_status;
     /** HVAC control mode (0=auto, 1=heat). */
     public int ch_control_mode;
@@ -36,14 +36,20 @@ public class ControlDTO {
     public double ch_mode_temp;
     /** DHW temperature setpoint (°C). */
     public double dhw_temp_setp;
+    /** DHW status bitmask (firmware-internal). */
+    public int dhw_status;
     /** DHW operating mode. */
     public int dhw_mode;
+    /** DHW mode temperature (°C). */
+    public double dhw_mode_temp;
+    /** Current weather temperature (°C) — reported in the control block, not report. */
+    public double weather_temp;
+    /** Weather status code (firmware-defined integer). */
+    public int weather_status;
+    /** Vacation period duration (seconds). */
+    public long vacation_duration;
     /** Extend mode duration (seconds). */
     public long extend_duration;
     /** Fireplace mode duration (seconds). */
     public long fireplace_duration;
-    /** Vacation period duration (seconds). */
-    public long vacation_duration;
-    /** Vacation period start, in ATAG epoch (seconds since 2000-01-01 UTC). */
-    public long start_vacation;
 }

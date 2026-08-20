@@ -74,10 +74,9 @@ class AtagOneApiClientLiveTest {
 
     /**
      * pair() returns 1 (pending) if the user must press Accept, 2 (granted) if the device
-     * auto-accepts. Some firmware versions return 0 for an already-known or open-LAN client —
-     * the raw JSON is logged at INFO so it can be inspected without recompiling.
-     * We assert only that the call completes without throwing, not on the specific value,
-     * because retrieve() will perform the authoritative auth check.
+     * auto-accepts. Some firmware versions return 0 for an open-LAN client — the raw JSON is
+     * logged so it can be inspected. We assert only that the call completes without throwing;
+     * retrieve() performs the authoritative auth check.
      */
     @Test
     @Order(1)
@@ -89,7 +88,6 @@ class AtagOneApiClientLiveTest {
         } else if (accStatus == 3) {
             fail("Device denied pairing (acc_status=3). Remove the binding's MAC from the device and retry.");
         }
-        // 0 or 2: continue — retrieve() will tell us if the device actually grants access
         assertTrue(accStatus >= 0, "acc_status must be non-negative, got: " + accStatus);
     }
 
@@ -102,6 +100,7 @@ class AtagOneApiClientLiveTest {
 
         LOGGER.info("--- status ---");
         LOGGER.info("  device_id        : {}", r.status.device_id);
+        LOGGER.info("  date_time        : {}", r.status.date_time);
 
         LOGGER.info("--- report ---");
         LOGGER.info("  room_temp        : {} °C", r.report.room_temp);
@@ -110,33 +109,34 @@ class AtagOneApiClientLiveTest {
         LOGGER.info("  ch_return_temp   : {} °C", r.report.ch_return_temp);
         LOGGER.info("  ch_water_pres    : {} bar", r.report.ch_water_pres);
         LOGGER.info("  ch_setpoint      : {} °C", r.report.ch_setpoint);
-        LOGGER.info("  boiler_status    : {} (hex: {})", r.report.boiler_status,
+        LOGGER.info("  boiler_status    : {} (0x{})", r.report.boiler_status,
                 Integer.toHexString(r.report.boiler_status).toUpperCase());
         LOGGER.info("  flame            : {}", (r.report.boiler_status & 0x100) != 0);
-        LOGGER.info("  dhw_active       : {}", (r.report.boiler_status & 0x08) != 0);
-        LOGGER.info("  ch_active        : {}", (r.report.boiler_status & 0x04) != 0);
+        LOGGER.info("  burner_on        : {}", (r.report.boiler_status & 0x008) != 0);
+        LOGGER.info("  ch_active        : {}", (r.report.boiler_status & 0x004) != 0);
+        LOGGER.info("  dhw_active       : {}", (r.report.boiler_status & 0x010) != 0);
         LOGGER.info("  burning_hours    : {}", r.report.burning_hours);
         LOGGER.info("  dhw_water_temp   : {} °C", r.report.dhw_water_temp);
-        LOGGER.info("  dhw_temp_setp    : {} °C", r.report.dhw_temp_setp);
-        LOGGER.info("  weather_temp     : {} °C", r.report.weather_temp);
-        LOGGER.info("  weather_status   : {}", r.report.weather_status);
-        LOGGER.info("  tout_avg         : {} °C", r.report.tout_avg);
         LOGGER.info("  shown_set_temp   : {} °C", r.report.shown_set_temp);
+        LOGGER.info("  tout_avg         : {} °C", r.report.tout_avg);
+        LOGGER.info("  rssi             : {}", r.report.rssi);
+        LOGGER.info("  power_cons       : {} W", r.report.power_cons);
+        LOGGER.info("  voltage          : {}", r.report.voltage);
+        LOGGER.info("  current          : {}", r.report.current);
+        LOGGER.info("  dhw_flow_rate    : {} L/min", r.report.dhw_flow_rate);
+        LOGGER.info("  resets           : {}", r.report.resets);
         LOGGER.info("  device_errors    : '{}'", r.report.device_errors);
         LOGGER.info("  boiler_errors    : '{}'", r.report.boiler_errors);
         LOGGER.info("  ch_time_to_temp  : {} s", r.report.ch_time_to_temp);
 
         LOGGER.info("--- report.details ---");
-        LOGGER.info("  rel_mod_level    : {}%", r.report.details.rel_mod_level);
         LOGGER.info("  boiler_temp      : {} °C", r.report.details.boiler_temp);
-        LOGGER.info("  ret_temp         : {} °C", r.report.details.ret_temp);
-        LOGGER.info("  dhw_flow_rate    : {} L/min", r.report.details.dhw_flow_rate);
+        LOGGER.info("  boiler_return_temp: {} °C", r.report.details.boiler_return_temp);
+        LOGGER.info("  rel_mod_level    : {}%", r.report.details.rel_mod_level);
         LOGGER.info("  min_mod_level    : {}%", r.report.details.min_mod_level);
         LOGGER.info("  max_boiler_temp  : {} °C", r.report.details.max_boiler_temp);
-        LOGGER.info("  voltage          : {} V", r.report.details.voltage);
-        LOGGER.info("  current          : {} A", r.report.details.current);
-        LOGGER.info("  power_kw         : {} kW", r.report.details.power_kw);
-        LOGGER.info("  resets           : {}", r.report.details.resets);
+        LOGGER.info("  regulation_state : {}", r.report.details.regulation_state);
+        LOGGER.info("  target_temp      : {} °C", r.report.details.target_temp);
 
         LOGGER.info("--- control ---");
         LOGGER.info("  ch_mode          : {}", r.control.ch_mode);
@@ -145,10 +145,11 @@ class AtagOneApiClientLiveTest {
         LOGGER.info("  ch_mode_duration : {} s", r.control.ch_mode_duration);
         LOGGER.info("  dhw_temp_setp    : {} °C", r.control.dhw_temp_setp);
         LOGGER.info("  dhw_mode         : {}", r.control.dhw_mode);
+        LOGGER.info("  weather_temp     : {} °C", r.control.weather_temp);
+        LOGGER.info("  weather_status   : {}", r.control.weather_status);
+        LOGGER.info("  vacation_duration: {} s", r.control.vacation_duration);
         LOGGER.info("  extend_duration  : {} s", r.control.extend_duration);
         LOGGER.info("  fireplace_duration: {} s", r.control.fireplace_duration);
-        LOGGER.info("  vacation_duration: {} s", r.control.vacation_duration);
-        LOGGER.info("  start_vacation   : {}", r.control.start_vacation);
 
         LOGGER.info("--- configuration ---");
         LOGGER.info("  ch_min_set       : {} °C", r.configuration.ch_min_set);
@@ -156,10 +157,15 @@ class AtagOneApiClientLiveTest {
         LOGGER.info("  dhw_min_set      : {} °C", r.configuration.dhw_min_set);
         LOGGER.info("  dhw_max_set      : {} °C", r.configuration.dhw_max_set);
         LOGGER.info("  ch_vacation_temp : {} °C", r.configuration.ch_vacation_temp);
-        LOGGER.info("  frost_prot       : {}", r.configuration.frost_prot);
-        LOGGER.info("  frost_prot_temp  : {} °C", r.configuration.frost_prot_temp);
+        LOGGER.info("  frost_prot_enabled: {}", r.configuration.frost_prot_enabled);
+        LOGGER.info("  frost_prot_temp_room: {} °C", r.configuration.frost_prot_temp_room);
         LOGGER.info("  summer_eco_mode  : {}", r.configuration.summer_eco_mode);
-        LOGGER.info("  legionella_prot  : {}", r.configuration.legionella_prot);
+        LOGGER.info("  dhw_legion_enabled: {}", r.configuration.dhw_legion_enabled);
+        LOGGER.info("  dhw_legion_day   : {}", r.configuration.dhw_legion_day);
+        LOGGER.info("  disp_brightness  : {}", r.configuration.disp_brightness);
+        LOGGER.info("  start_vacation   : {}", r.configuration.start_vacation);
+        LOGGER.info("  ch_mode_vacation : {} s", r.configuration.ch_mode_vacation);
+        LOGGER.info("  boiler_id        : {}", r.configuration.boiler_id);
 
         // ── Structural assertions ──────────────────────────────────────────────
 
@@ -168,7 +174,6 @@ class AtagOneApiClientLiveTest {
         assertTrue(r.report.room_temp >= 5 && r.report.room_temp <= 35,
                 "room_temp out of plausible range: " + r.report.room_temp);
 
-        // Signed outside temperature — must stay negative in winter (kozmoz issue #36)
         assertTrue(r.report.outside_temp >= -30 && r.report.outside_temp <= 50,
                 "outside_temp out of plausible range: " + r.report.outside_temp);
 
@@ -181,6 +186,8 @@ class AtagOneApiClientLiveTest {
                 "rel_mod_level out of range: " + r.report.details.rel_mod_level);
 
         assertTrue(r.control.ch_mode >= 1 && r.control.ch_mode <= 6, "ch_mode out of range: " + r.control.ch_mode);
+
+        assertTrue(r.control.dhw_temp_setp > 0, "dhw_temp_setp should be positive: " + r.control.dhw_temp_setp);
 
         assertTrue(r.configuration.ch_min_set > 0 && r.configuration.ch_min_set < r.configuration.ch_max_set,
                 "ch_min_set/ch_max_set implausible: " + r.configuration.ch_min_set + "/" + r.configuration.ch_max_set);
