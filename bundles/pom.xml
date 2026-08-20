@@ -1,19 +1,14 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+<?xml version="1.0" encoding="UTF-8"?><project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>org.openhab.addons</groupId>
     <artifactId>org.openhab.addons.reactor</artifactId>
-    <version>5.2.2-SNAPSHOT</version>
+    <version>5.3.0-SNAPSHOT</version>
   </parent>
-
   <groupId>org.openhab.addons.bundles</groupId>
   <artifactId>org.openhab.addons.reactor.bundles</artifactId>
   <packaging>pom</packaging>
-
   <name>openHAB Add-ons :: Bundles</name>
-
   <modules>
     <!-- automation -->
     <module>org.openhab.automation.groovyscripting</module>
@@ -31,6 +26,7 @@
     <module>org.openhab.io.metrics</module>
     <module>org.openhab.io.neeo</module>
     <module>org.openhab.io.openhabcloud</module>
+    <module>org.openhab.io.opentelemetry</module>
     <module>org.openhab.io.yamlcomposer</module>
     <!-- transformations -->
     <module>org.openhab.transform.basicprofiles</module>
@@ -68,6 +64,7 @@
     <module>org.openhab.binding.argoclima</module>
     <module>org.openhab.binding.astro</module>
     <module>org.openhab.binding.asuswrt</module>
+    <module>org.openhab.binding.atagone</module>
     <module>org.openhab.binding.atlona</module>
     <module>org.openhab.binding.atmofrance</module>
     <module>org.openhab.binding.autelis</module>
@@ -347,6 +344,7 @@
     <module>org.openhab.binding.orvibo</module>
     <module>org.openhab.binding.panasonicbdp</module>
     <module>org.openhab.binding.paradoxalarm</module>
+    <module>org.openhab.binding.peblar</module>
     <module>org.openhab.binding.pegelonline</module>
     <module>org.openhab.binding.pentair</module>
     <module>org.openhab.binding.phc</module>
@@ -530,13 +528,11 @@
     <module>org.openhab.voice.watsonstt</module>
     <module>org.openhab.voice.whisperstt</module>
   </modules>
-
   <properties>
     <m2e.jdt.annotationpath>target/dependency</m2e.jdt.annotationpath>
     <dep.noembedding/>
     <markdownlint.skip>false</markdownlint.skip>
   </properties>
-
   <dependencies>
     <dependency>
       <groupId>org.lastnpe.eea</groupId>
@@ -592,7 +588,6 @@
       <scope>provided</scope>
     </dependency>
   </dependencies>
-
   <build>
     <pluginManagement>
       <plugins>
@@ -660,9 +655,39 @@
             </execution>
           </executions>
         </plugin>
+        <plugin>
+          <groupId>com.github.eirslett</groupId>
+          <artifactId>frontend-maven-plugin</artifactId>
+          <configuration>
+            <installDirectory>${project.build.directory}/node-markdownlint</installDirectory>
+          </configuration>
+          <executions>
+            <execution>
+              <id>install-node-and-npm</id>
+              <goals>
+                <goal>install-node-and-npm</goal>
+              </goals>
+              <phase>validate</phase>
+              <configuration>
+                <skip>${markdownlint.execution.skip}</skip>
+              </configuration>
+            </execution>
+            <execution>
+              <id>markdownlint</id>
+              <goals>
+                <goal>npm</goal>
+              </goals>
+              <phase>validate</phase>
+              <configuration>
+                <skip>${markdownlint.execution.skip}</skip>
+                <workingDirectory>${project.basedir}</workingDirectory>
+                <arguments>exec --yes markdownlint-cli2 -- **/*.md !**/target/** !**/node_modules/** --config ${maven.multiModuleProjectDirectory}/.github/markdownlint.yaml</arguments>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
-
     <plugins>
       <plugin>
         <groupId>biz.aQute.bnd</groupId>
@@ -747,7 +772,6 @@
               </target>
             </configuration>
           </execution>
-
           <!-- 2. Generate catalog dynamically -->
           <execution>
             <id>generate-catalog</id>
@@ -758,17 +782,16 @@
             <configuration>
               <target>
                 <mkdir dir="${maven.multiModuleProjectDirectory}/target/schemas"/>
-                <echo file="${maven.multiModuleProjectDirectory}/target/schemas/thing-type-xml-validation-catalog.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
-    <uri name="https://openhab.org/schemas/thing-description-1.0.0.xsd"
-         uri="file:///${maven.multiModuleProjectDirectory}/target/schemas/thing-description-1.0.0.xsd"/>
-</catalog>]]></echo>
+                <echo file="${maven.multiModuleProjectDirectory}/target/schemas/thing-type-xml-validation-catalog.xml">&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog"&gt;
+    &lt;uri name="https://openhab.org/schemas/thing-description-1.0.0.xsd"
+         uri="file:///${maven.multiModuleProjectDirectory}/target/schemas/thing-description-1.0.0.xsd"/&gt;
+&lt;/catalog&gt;</echo>
               </target>
             </configuration>
           </execution>
         </executions>
       </plugin>
-
       <!-- 3. XML validation plugin -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
@@ -793,51 +816,8 @@
           </execution>
         </executions>
       </plugin>
-
-      <!-- 4. Run markdownlint -->
-      <plugin>
-        <groupId>com.github.eirslett</groupId>
-        <artifactId>frontend-maven-plugin</artifactId>
-        <version>2.0.1</version>
-
-        <configuration>
-          <!-- Central toolchain for markdownlint (Node 24) -->
-          <installDirectory>${maven.multiModuleProjectDirectory}/target/.mvn/node-markdownlint</installDirectory>
-          <nodeVersion>v24.12.0</nodeVersion>
-
-          <!-- Recommended: pin npm too for reproducibility -->
-          <npmVersion>11.6.2</npmVersion>
-        </configuration>
-
-        <executions>
-          <execution>
-            <id>install-node-and-npm</id>
-            <goals>
-              <goal>install-node-and-npm</goal>
-            </goals>
-            <phase>validate</phase>
-            <configuration>
-              <skip>${markdownlint.skip}</skip>
-            </configuration>
-          </execution>
-
-          <execution>
-            <id>markdownlint</id>
-            <goals>
-              <goal>npm</goal>
-            </goals>
-            <phase>validate</phase>
-            <configuration>
-              <skip>${markdownlint.skip}</skip>
-              <workingDirectory>${project.basedir}</workingDirectory>
-              <arguments>exec --yes markdownlint-cli2 -- **/*.md !**/target/** !**/node_modules/** --config ${maven.multiModuleProjectDirectory}/.github/markdownlint.yaml</arguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
-
   <profiles>
     <profile>
       <id>skipXmlValidation</id>
@@ -881,6 +861,41 @@
         </plugins>
       </build>
     </profile>
+    <profile>
+      <id>markdownlint</id>
+      <activation>
+        <property>
+          <name>!m2e.version</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>configure-markdownlint</id>
+                <goals>
+                  <goal>regex-property</goal>
+                </goals>
+                <phase>validate</phase>
+                <configuration>
+                  <name>markdownlint.execution.skip</name>
+                  <value>true|${markdownlint.skip}|${project.artifactId}|${session.topLevelProject.basedir}</value>
+                  <regex>^(?:(true)\|true\|.*|true\|false\|org\.openhab\.addons\.reactor\.bundles\|.*|true\|false\|.*\|\Q${project.basedir}\E|(true)\|.*)$</regex>
+                  <replacement>$1$2</replacement>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>com.github.eirslett</groupId>
+            <artifactId>frontend-maven-plugin</artifactId>
+            <inherited>true</inherited>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
-
 </project>
