@@ -136,9 +136,12 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
             }
         }
 
-        // Device ID follows the "ONE " prefix, null-padded to fill the datagram.
-        String deviceId = new String(data, BROADCAST_PREFIX.length, length - BROADCAST_PREFIX.length,
+        // Payload after "ONE ": "<device_id> (ST)" — the device ID is the first space-delimited token.
+        // The suffix " (ST)" is a status indicator (e.g. Standby); null bytes pad to exactly 37 bytes.
+        String rest = new String(data, BROADCAST_PREFIX.length, length - BROADCAST_PREFIX.length,
                 StandardCharsets.US_ASCII).replace("\0", "").trim();
+        String deviceId = rest.contains(" ") ? rest.substring(0, rest.indexOf(' ')) : rest;
+        String statusSuffix = rest.contains(" ") ? rest.substring(rest.indexOf(' ')).trim() : "";
 
         if (deviceId.isEmpty()) {
             logger.debug("ATAG ONE discovery packet contained empty device ID");
@@ -146,7 +149,7 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
         }
 
         String host = packet.getAddress().getHostAddress();
-        logger.info("Discovered ATAG ONE: deviceId={} host={}", deviceId, host);
+        logger.info("Discovered ATAG ONE: deviceId={} status={} host={}", deviceId, statusSuffix, host);
         announce(deviceId, host);
     }
 
