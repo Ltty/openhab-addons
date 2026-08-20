@@ -13,6 +13,8 @@
 package org.openhab.binding.atagone.internal.api;
 
 import java.io.EOFException;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -21,9 +23,10 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
-import org.eclipse.jetty.client.util.StringContentProvider;
+import org.eclipse.jetty.client.util.BytesContentProvider;
 import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpMethod;
+import org.eclipse.jetty.http.HttpVersion;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.PairReplyDTO;
@@ -53,8 +56,8 @@ public class AtagOneApiClient {
     /** Bitmask for retrieve: control(1)+schedules(2)+configuration(4)+report(8)+details(64). */
     private static final int INFO_BITMASK = 79;
     private static final int REQUEST_TIMEOUT_S = 5;
-    private static final long MIN_INTERVAL_MS = 1_000L;
-    private static final int MAX_RETRIES = 2;
+    private static final long MIN_INTERVAL_MS = 2_000L;
+    private static final int MAX_RETRIES = 5;
 
     private final Logger logger = LoggerFactory.getLogger(AtagOneApiClient.class);
 
@@ -95,6 +98,7 @@ public class AtagOneApiClient {
         root.add("pair_message", pairMsg);
 
         String responseJson = sendRequest("/pair", gson.toJson(root));
+        logger.info("pair raw response: {}", responseJson);
         JsonObject reply = JsonParser.parseString(responseJson).getAsJsonObject().getAsJsonObject("pair_reply");
         if (reply == null) {
             throw new AtagOneCommunicationException("Missing pair_reply in response: " + responseJson);
@@ -213,8 +217,10 @@ public class AtagOneApiClient {
             try {
                 lastRequestMs = System.currentTimeMillis();
                 String url = baseUrl + path;
+                byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
                 ContentResponse response = httpClient.newRequest(url).method(HttpMethod.POST)
-                        .header(HttpHeader.CONTENT_TYPE, "application/json").content(new StringContentProvider(body))
+                        .version(HttpVersion.HTTP_1_0).header(HttpHeader.CONTENT_TYPE, "application/json")
+                        .header(HttpHeader.CONNECTION, "close").content(new BytesContentProvider(bodyBytes))
                         .timeout(REQUEST_TIMEOUT_S, TimeUnit.SECONDS).send();
                 logger.trace("POST {} → HTTP {}", path, response.getStatus());
                 return response.getContentAsString();
@@ -225,9 +231,10 @@ public class AtagOneApiClient {
                 lastException = e;
                 logger.debug("Timeout on {} (attempt {}): {}", path, attempt + 1, e.getMessage());
             } catch (ExecutionException e) {
-                if (e.getCause() instanceof EOFException) {
+                Throwable cause = e.getCause();
+                if (cause instanceof EOFException || cause instanceof SocketTimeoutException) {
                     lastException = e;
-                    logger.debug("EOF on {} (attempt {}): {}", path, attempt + 1, e.getMessage());
+                    logger.debug("Transient error on {} (attempt {}): {}", path, attempt + 1, e.getMessage());
                 } else {
                     throw new AtagOneCommunicationException("Request to " + path + " failed", e);
                 }
