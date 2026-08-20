@@ -38,6 +38,7 @@ import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.unit.SIUnits;
 import org.openhab.core.library.unit.Units;
 import org.openhab.core.thing.ChannelUID;
+import org.openhab.core.thing.Thing;
 import org.openhab.core.thing.ThingStatus;
 import org.openhab.core.thing.ThingStatusDetail;
 import org.openhab.core.thing.binding.BaseThingHandler;
@@ -70,7 +71,7 @@ public class AtagOneHandler extends BaseThingHandler {
 
     private final Map<String, State> stateMap = Collections.synchronizedMap(new HashMap<>());
 
-    public AtagOneHandler(org.openhab.core.thing.Thing thing, HttpClient httpClient) {
+    public AtagOneHandler(Thing thing, HttpClient httpClient) {
         super(thing);
         this.httpClient = httpClient;
     }

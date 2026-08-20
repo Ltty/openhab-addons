@@ -64,6 +64,7 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_SHOWN_SET_TEMPERATURE = "shown-set-temperature";
     public static final String CHANNEL_AVERAGE_OUTSIDE_TEMPERATURE = "average-outside-temperature";
     public static final String CHANNEL_PCB_TEMPERATURE = "pcb-temperature";
+    public static final String CHANNEL_WIFI_SIGNAL = "wifi-signal";
     public static final String CHANNEL_MODULATION_MIN = "min-modulation-level";
     public static final String CHANNEL_BOILER_TEMPERATURE = "boiler-temperature";
     public static final String CHANNEL_BOILER_RETURN_TEMPERATURE = "boiler-return-temperature";
@@ -85,9 +86,6 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_LEGIONELLA_PROTECTION = "legionella-protection";
     public static final String CHANNEL_SUMMER_ECO_MODE = "summer-eco-mode";
     public static final String CHANNEL_SUMMER_ECO_TEMPERATURE = "summer-eco-temperature";
-
-    // Advanced diagnostic channels (not in the everyday set)
-    public static final String CHANNEL_WIFI_SIGNAL = "wifi-signal";
 
     // Thing property key for the persisted client identifier
     public static final String PROPERTY_CLIENT_ID = "clientId";
