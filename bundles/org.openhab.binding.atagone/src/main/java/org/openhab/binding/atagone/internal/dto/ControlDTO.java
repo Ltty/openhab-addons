@@ -17,8 +17,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 /**
  * Gson DTO for the {@code control} block in a {@code retrieve_reply}.
  * <p>
- * CH mode values: 1=manual, 2=automatic, 3=vacation, 4=extend, 5=fireplace, 6=standby.
- * CH control mode: 0=auto, 1=heat.
+ * CH mode values: 1=manual, 2=auto, 3=holiday/vacation, 4=extend, 5=fireplace.
+ * CH control mode: 0=heat (normal for a heating-only device), 1=auto (schedule-following).
  *
  * @author Florian Lettner - Initial contribution
  */

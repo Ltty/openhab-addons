@@ -56,7 +56,8 @@ class AtagOneApiClientLiveTest {
     @BeforeAll
     static void setUp() throws Exception {
         String host = Objects.requireNonNull(System.getProperty("atag.host"));
-        int port = Integer.getInteger("atag.port", 10000);
+        Integer portProp = Integer.getInteger("atag.port", 10000);
+        int port = portProp != null ? portProp : 10000;
         LOGGER.info("=== ATAG ONE integration test  host={}  port={}", host, port);
         httpClient = new HttpClient();
         httpClient.start();

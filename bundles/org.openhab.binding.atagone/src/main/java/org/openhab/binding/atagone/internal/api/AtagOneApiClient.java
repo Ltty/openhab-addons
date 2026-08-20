@@ -53,8 +53,11 @@ import com.google.gson.JsonParser;
 @NonNullByDefault
 public class AtagOneApiClient {
 
-    /** Bitmask for retrieve: control(1)+schedules(2)+configuration(4)+report(8)+details(64). */
-    private static final int INFO_BITMASK = 79;
+    /**
+     * Bitmask for retrieve: control(1)+schedules(2)+configuration(4)+report(8)+status(16)+details(64).
+     * wifi_scan(32) is deliberately excluded — it scans nearby APs and slows the response.
+     */
+    private static final int INFO_BITMASK = 127;
     private static final int REQUEST_TIMEOUT_S = 5;
     private static final long MIN_INTERVAL_MS = 2_000L;
     private static final int MAX_RETRIES = 5;
