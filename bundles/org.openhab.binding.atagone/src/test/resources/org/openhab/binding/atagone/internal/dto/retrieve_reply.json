@@ -1,0 +1,75 @@
+{
+  "retrieve_reply": {
+    "seqnr": 0,
+    "acc_status": 2,
+    "status": {
+      "date": 766123456,
+      "time": 766123456,
+      "device_id": "6808-1401-3109_15-30-001-544",
+      "download_url": "",
+      "binds_to_mac": ""
+    },
+    "report": {
+      "room_temp": 21.3,
+      "outside_temp": -3.5,
+      "pcb_temp": 29.0,
+      "ch_setpoint": 62.0,
+      "ch_water_temp": 64.5,
+      "ch_return_temp": 52.1,
+      "boiler_status": 268,
+      "ch_time_to_temp": 0,
+      "shown_set_temp": 20.0,
+      "ch_water_pres": 1.52,
+      "burning_hours": 3521.75,
+      "device_errors": "",
+      "boiler_errors": "",
+      "weather_temp": 5.0,
+      "weather_status": "cloudy",
+      "tout_avg": -1.2,
+      "dhw_water_temp": 54.8,
+      "dhw_temp_setp": 60.0,
+      "details": {
+        "rel_mod_level": 45,
+        "boiler_temp": 64.5,
+        "ret_temp": 52.1,
+        "ch_water_pres": 1.52,
+        "dhw_flow_rate": 0.0,
+        "min_mod_level": 15,
+        "max_boiler_temp": 90.0,
+        "voltage": 230,
+        "current": 2,
+        "power_kw": 0.46,
+        "resets": 3,
+        "memory_allocation": 0
+      }
+    },
+    "control": {
+      "ch_status": 1,
+      "ch_control_mode": 0,
+      "ch_mode": 2,
+      "ch_mode_duration": 0,
+      "ch_mode_temp": 20.0,
+      "dhw_temp_setp": 60.0,
+      "dhw_mode": 0,
+      "extend_duration": 0,
+      "fireplace_duration": 0,
+      "vacation_duration": 0,
+      "start_vacation": 0
+    },
+    "configuration": {
+      "ch_min_set": 15,
+      "ch_max_set": 30,
+      "dhw_min_set": 40,
+      "dhw_max_set": 65,
+      "ch_vacation_temp": 15.0,
+      "dhw_vacation_temp": 45.0,
+      "frost_prot": 1,
+      "frost_prot_temp": 10.0,
+      "summer_eco_mode": 0,
+      "summer_eco_temp": 18.0,
+      "legionella_prot": 1,
+      "start_vacation": 0,
+      "reg_vol": 1
+    }
+  }
+}
