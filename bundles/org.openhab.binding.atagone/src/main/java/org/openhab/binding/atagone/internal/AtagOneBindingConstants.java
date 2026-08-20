@@ -50,6 +50,7 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_MODULATION_LEVEL = "modulation-level";
     public static final String CHANNEL_BURNING_HOURS = "burning-hours";
     public static final String CHANNEL_BURNER_TARGET = "burner-target";
+    public static final String CHANNEL_VACATION_DURATION = "vacation-duration";
     public static final String CHANNEL_VACATION_START = "vacation-start";
     public static final String CHANNEL_VACATION_END = "vacation-end";
     public static final String CHANNEL_VACATION_TEMPERATURE = "vacation-temperature";

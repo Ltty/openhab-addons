@@ -32,6 +32,7 @@
 			<channel id="burning-hours" typeId="burning-hours"/>
 			<channel id="time-to-target" typeId="time-to-target"/>
 			<!-- Vacation -->
+			<channel id="vacation-duration" typeId="vacation-duration"/>
 			<channel id="vacation-start" typeId="vacation-start"/>
 			<channel id="vacation-end" typeId="vacation-end"/>
 			<channel id="vacation-temperature" typeId="vacation-temperature"/>
@@ -271,26 +272,39 @@
 		<state readOnly="true" pattern="%d %unit%"/>
 	</channel-type>
 
-	<channel-type id="vacation-start">
-		<item-type>DateTime</item-type>
-		<label>Vacation Start</label>
-		<description>Start of the vacation period. Set together with vacation-end then switch preset-mode to holiday.</description>
+	<channel-type id="vacation-duration">
+		<item-type unitHint="d">Number:Time</item-type>
+		<label>Vacation Duration</label>
+		<description>Holiday duration in days. Writing this value activates holiday mode starting now.</description>
 		<category>Time</category>
 		<tags>
 			<tag>Control</tag>
+		</tags>
+		<state pattern="%.0f %unit%" min="1" max="365" step="1"/>
+	</channel-type>
+
+	<channel-type id="vacation-start">
+		<item-type>DateTime</item-type>
+		<label>Vacation Start</label>
+		<description>When the current holiday period started.</description>
+		<category>Time</category>
+		<tags>
+			<tag>Status</tag>
 			<tag>Timestamp</tag>
 		</tags>
+		<state readOnly="true"/>
 	</channel-type>
 
 	<channel-type id="vacation-end">
 		<item-type>DateTime</item-type>
 		<label>Vacation End</label>
-		<description>End of the vacation period.</description>
+		<description>When the current holiday period ends.</description>
 		<category>Time</category>
 		<tags>
-			<tag>Control</tag>
+			<tag>Status</tag>
 			<tag>Timestamp</tag>
 		</tags>
+		<state readOnly="true"/>
 	</channel-type>
 
 	<channel-type id="vacation-temperature">

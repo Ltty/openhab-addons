@@ -14,7 +14,6 @@ package org.openhab.binding.atagone.internal;
 
 import static org.openhab.binding.atagone.internal.AtagOneBindingConstants.*;
 
-import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,10 +72,6 @@ public class AtagOneHandler extends BaseThingHandler {
 
     private final Map<String, State> stateMap = Collections.synchronizedMap(new HashMap<>());
 
-    // Pending vacation dates — held until both ends are known, then sent together.
-    private @Nullable ZonedDateTime pendingVacationStart;
-    private @Nullable ZonedDateTime pendingVacationEnd;
-
     public AtagOneHandler(Thing thing, HttpClient httpClient) {
         super(thing);
         this.httpClient = httpClient;
@@ -94,8 +89,6 @@ public class AtagOneHandler extends BaseThingHandler {
             return;
         }
         stateMap.clear();
-        pendingVacationStart = null;
-        pendingVacationEnd = null;
         updateStatus(ThingStatus.UNKNOWN);
         scheduler.execute(this::connect);
     }
@@ -133,13 +126,7 @@ public class AtagOneHandler extends BaseThingHandler {
             return;
         }
 
-        // Vacation date channels: manage pending state and send when both ends are known.
         String channelId = channelUID.getId();
-        if (CHANNEL_VACATION_START.equals(channelId) || CHANNEL_VACATION_END.equals(channelId)) {
-            handleVacationDateCommand(client, channelId, command);
-            return;
-        }
-
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
         if (!buildControlUpdate(channelId, command, control, configUpdate)) {
@@ -179,6 +166,19 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
+            case CHANNEL_VACATION_DURATION:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> seconds = qt.toUnit(Units.SECOND);
+                    if (seconds == null || seconds.longValue() <= 0) {
+                        return false;
+                    }
+                    dto.ch_mode = CH_MODE_HOLIDAY;
+                    dto.vacation_duration = seconds.longValue();
+                    configDto.start_vacation = AtagEpoch.fromZonedDateTime(ZonedDateTime.now());
+                    return true;
+                }
+                return false;
+
             case CHANNEL_PRESET_MODE:
                 if (command instanceof StringType s) {
                     String modeName = s.toString().toLowerCase();
@@ -187,39 +187,30 @@ public class AtagOneHandler extends BaseThingHandler {
                         return false;
                     }
                     if (mode == CH_MODE_HOLIDAY) {
-                        ZonedDateTime start = pendingVacationStart;
-                        ZonedDateTime end = pendingVacationEnd;
-                        if (start == null) {
-                            start = getStoredDateTime(CHANNEL_VACATION_START);
+                        // Use stored vacation-duration or default to 7 days.
+                        long durationSeconds = 7 * 86400L;
+                        State stored = stateMap.get(CHANNEL_VACATION_DURATION);
+                        if (stored instanceof QuantityType<?> sq) {
+                            QuantityType<?> inSeconds = sq.toUnit(Units.SECOND);
+                            if (inSeconds != null && inSeconds.longValue() > 0) {
+                                durationSeconds = inSeconds.longValue();
+                            }
                         }
-                        if (end == null) {
-                            end = getStoredDateTime(CHANNEL_VACATION_END);
+                        if (durationSeconds == 7 * 86400L) {
+                            logger.info("No vacation-duration set, defaulting to 7 days");
                         }
-                        ZonedDateTime now = ZonedDateTime.now();
-                        if (start == null) {
-                            start = now;
-                            logger.info("No vacation-start set, defaulting to now");
-                        }
-                        if (end == null) {
-                            end = start.plusDays(7);
-                            logger.info("No vacation-end set, defaulting to 7 days from start");
-                        }
-                        if (!end.isAfter(start)) {
-                            logger.warn("vacation-end must be after vacation-start — ignoring preset-mode=vacation");
-                            return false;
-                        }
-                        buildVacationUpdate(start, end, dto, configDto);
+                        dto.ch_mode = CH_MODE_HOLIDAY;
+                        dto.vacation_duration = durationSeconds;
+                        configDto.start_vacation = AtagEpoch.fromZonedDateTime(ZonedDateTime.now());
                         return true;
                     }
                     dto.ch_mode = mode;
                     dto.ch_mode_duration = 0L;
                     // Leaving vacation mode — clear the vacation schedule on the device.
                     State currentPreset = stateMap.get(CHANNEL_PRESET_MODE);
-                    if (currentPreset instanceof StringType st && "vacation".equals(st.toString())) {
+                    if (currentPreset instanceof StringType st && "holiday".equals(st.toString())) {
                         dto.vacation_duration = 0L;
                         configDto.start_vacation = 0L;
-                        pendingVacationStart = null;
-                        pendingVacationEnd = null;
                     }
                     return true;
                 }
@@ -373,55 +364,6 @@ public class AtagOneHandler extends BaseThingHandler {
         }
     }
 
-    // ── Vacation helpers ──────────────────────────────────────────────────────
-
-    private void handleVacationDateCommand(AtagOneApiClient client, String channelId, Command command) {
-        if (!(command instanceof DateTimeType dt)) {
-            return;
-        }
-        if (CHANNEL_VACATION_START.equals(channelId)) {
-            pendingVacationStart = dt.getZonedDateTime();
-        } else {
-            pendingVacationEnd = dt.getZonedDateTime();
-        }
-        ZonedDateTime start = pendingVacationStart != null ? pendingVacationStart
-                : getStoredDateTime(CHANNEL_VACATION_START);
-        ZonedDateTime end = pendingVacationEnd != null ? pendingVacationEnd : getStoredDateTime(CHANNEL_VACATION_END);
-        if (start == null || end == null) {
-            logger.info("Vacation {} stored — provide both vacation-start and vacation-end to activate", channelId);
-            return;
-        }
-        if (!end.isAfter(start)) {
-            logger.warn("vacation-end must be after vacation-start — ignoring");
-            return;
-        }
-        ControlUpdateDTO control = new ControlUpdateDTO();
-        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
-        buildVacationUpdate(start, end, control, configUpdate);
-        stopPollJob();
-        try {
-            client.updateControl(control, configUpdate);
-        } catch (AtagOneCommunicationException e) {
-            logger.warn("Vacation date update failed: {}", e.getMessage());
-        }
-        startPollJob(POST_COMMAND_DELAY_S);
-    }
-
-    private void buildVacationUpdate(ZonedDateTime start, ZonedDateTime end, ControlUpdateDTO control,
-            DeviceConfigUpdateDTO config) {
-        control.ch_mode = CH_MODE_HOLIDAY;
-        control.vacation_duration = Duration.between(start, end).getSeconds();
-        config.start_vacation = AtagEpoch.fromZonedDateTime(start);
-    }
-
-    private @Nullable ZonedDateTime getStoredDateTime(String channelId) {
-        State s = stateMap.get(channelId);
-        if (s instanceof DateTimeType dt) {
-            return dt.getZonedDateTime();
-        }
-        return null;
-    }
-
     // ── Channel updates ───────────────────────────────────────────────────────
 
     private void updateChannels(RetrieveReplyDTO r) {
@@ -488,6 +430,7 @@ public class AtagOneHandler extends BaseThingHandler {
         if (mode == CH_MODE_HOLIDAY && r.control.vacation_duration > 0 && r.configuration.start_vacation > 0) {
             ZonedDateTime vacStart = AtagEpoch.toZonedDateTime(r.configuration.start_vacation);
             ZonedDateTime vacEnd = vacStart.plusSeconds(r.control.vacation_duration);
+            updateIfChanged(CHANNEL_VACATION_DURATION, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
             updateIfChanged(CHANNEL_VACATION_START, new DateTimeType(vacStart));
             updateIfChanged(CHANNEL_VACATION_END, new DateTimeType(vacEnd));
             updateIfChanged(CHANNEL_VACATION_REMAINING, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
@@ -506,6 +449,7 @@ public class AtagOneHandler extends BaseThingHandler {
             updateIfChanged(CHANNEL_EXTEND_REMAINING, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, new QuantityType<>(r.control.ch_mode_duration, Units.SECOND));
         } else {
+            updateIfChanged(CHANNEL_VACATION_DURATION, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_START, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_END, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_REMAINING, UnDefType.UNDEF);
