@@ -14,6 +14,7 @@ package org.openhab.binding.atagone.internal;
 
 import static org.openhab.binding.atagone.internal.AtagOneBindingConstants.*;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -430,19 +431,22 @@ public class AtagOneHandler extends BaseThingHandler {
         if (mode == CH_MODE_HOLIDAY && r.control.vacation_duration > 0 && r.configuration.start_vacation > 0) {
             ZonedDateTime vacStart = AtagEpoch.toZonedDateTime(r.configuration.start_vacation);
             ZonedDateTime vacEnd = vacStart.plusSeconds(r.control.vacation_duration);
+            long remainingSeconds = Math.max(0, Duration.between(ZonedDateTime.now(), vacEnd).getSeconds());
             updateIfChanged(CHANNEL_VACATION_DURATION, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
             updateIfChanged(CHANNEL_VACATION_START, new DateTimeType(vacStart));
             updateIfChanged(CHANNEL_VACATION_END, new DateTimeType(vacEnd));
-            updateIfChanged(CHANNEL_VACATION_REMAINING, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
+            updateIfChanged(CHANNEL_VACATION_REMAINING, new QuantityType<>(remainingSeconds, Units.SECOND));
             updateIfChanged(CHANNEL_EXTEND_REMAINING, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, UnDefType.UNDEF);
         } else if (mode == CH_MODE_EXTEND) {
+            updateIfChanged(CHANNEL_VACATION_DURATION, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_START, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_END, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_REMAINING, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_EXTEND_REMAINING, new QuantityType<>(r.control.ch_mode_duration, Units.SECOND));
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, UnDefType.UNDEF);
         } else if (mode == CH_MODE_FIREPLACE) {
+            updateIfChanged(CHANNEL_VACATION_DURATION, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_START, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_END, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_REMAINING, UnDefType.UNDEF);
