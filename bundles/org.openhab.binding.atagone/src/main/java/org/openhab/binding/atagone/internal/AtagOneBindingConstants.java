@@ -12,6 +12,7 @@
  */
 package org.openhab.binding.atagone.internal;
 
+import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
@@ -85,6 +86,41 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_SUMMER_ECO_MODE = "summer-eco-mode";
     public static final String CHANNEL_SUMMER_ECO_TEMPERATURE = "summer-eco-temperature";
 
+    // Advanced diagnostic channels (not in the everyday set)
+    public static final String CHANNEL_WIFI_SIGNAL = "wifi-signal";
+
     // Thing property key for the persisted client identifier
     public static final String PROPERTY_CLIENT_ID = "clientId";
+
+    // ── Protocol enum constants ───────────────────────────────────────────────
+
+    public static final int CH_MODE_MANUAL = 1;
+    public static final int CH_MODE_AUTO = 2;
+    public static final int CH_MODE_HOLIDAY = 3;
+    public static final int CH_MODE_EXTEND = 4;
+    public static final int CH_MODE_FIREPLACE = 5;
+
+    public static final int CH_CONTROL_MODE_HEAT = 0;
+    public static final int CH_CONTROL_MODE_AUTO = 1;
+
+    public static final int BOILER_STATUS_CH_ACTIVE = 0x004;
+    public static final int BOILER_STATUS_BURNER_ON = 0x008;
+    public static final int BOILER_STATUS_DHW_ACTIVE = 0x010;
+    public static final int BOILER_STATUS_FLAME = 0x100;
+
+    public static final Map<Integer, String> CH_MODE_NAMES = Map.of(CH_MODE_MANUAL, "manual", CH_MODE_AUTO, "auto",
+            CH_MODE_HOLIDAY, "holiday", CH_MODE_EXTEND, "extend", CH_MODE_FIREPLACE, "fireplace");
+
+    public static final Map<String, Integer> CH_MODE_BY_NAME = Map.of("manual", CH_MODE_MANUAL, "auto", CH_MODE_AUTO,
+            "holiday", CH_MODE_HOLIDAY, "vacation", CH_MODE_HOLIDAY, "extend", CH_MODE_EXTEND, "fireplace",
+            CH_MODE_FIREPLACE);
+
+    public static final Map<Integer, String> CH_CONTROL_MODE_NAMES = Map.of(CH_CONTROL_MODE_HEAT, "heat",
+            CH_CONTROL_MODE_AUTO, "auto");
+
+    public static final Map<Integer, String> WEATHER_STATUS_NAMES = Map.ofEntries(Map.entry(0, "sunny"),
+            Map.entry(1, "clear"), Map.entry(2, "rainy"), Map.entry(3, "snowy"), Map.entry(4, "hail"),
+            Map.entry(5, "windy"), Map.entry(6, "fog"), Map.entry(7, "cloudy"), Map.entry(8, "partly-sunny"),
+            Map.entry(9, "partly-cloudy"), Map.entry(10, "pouring"), Map.entry(11, "lightning"),
+            Map.entry(12, "hurricane"), Map.entry(13, "unknown"));
 }

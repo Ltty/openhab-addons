@@ -26,7 +26,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 public class ControlDTO {
     /** CH circuit status bitmask (firmware-internal). */
     public int ch_status;
-    /** HVAC control mode (0=auto, 1=heat). */
+    /** HVAC control mode (0=heat — normal for a heating-only device, 1=auto — schedule-following). */
     public int ch_control_mode;
     /** Current preset mode (1=manual, 2=auto, 3=vacation, 4=extend, 5=fireplace, 6=standby). */
     public int ch_mode;
