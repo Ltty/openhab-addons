@@ -4,7 +4,9 @@
 	xsi:schemaLocation="https://openhab.org/schemas/addon/v1.0.0 https://openhab.org/schemas/addon-1.0.0.xsd">
 
 	<type>binding</type>
-	<name>AtagOne Binding</name>
-	<description>This is the binding for AtagOne.</description>
+	<name>ATAG ONE Binding</name>
+	<description>Integrates the ATAG ONE smart thermostat via its local LAN API, with no cloud connection or MQTT broker
+		required. Auto-discovers devices via UDP broadcast on port 11000.</description>
+	<connection>local</connection>
 
 </addon:addon>

@@ -149,7 +149,7 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
         }
 
         String host = packet.getAddress().getHostAddress();
-        logger.info("Discovered ATAG ONE: deviceId={} status={} host={}", deviceId, statusSuffix, host);
+        logger.debug("Discovered ATAG ONE: deviceId={} status={} host={}", deviceId, statusSuffix, host);
         announce(deviceId, host);
     }
 

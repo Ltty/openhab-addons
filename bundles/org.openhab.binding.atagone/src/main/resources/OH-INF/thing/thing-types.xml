@@ -10,40 +10,44 @@
 		<semantic-equipment-tag>Thermostat</semantic-equipment-tag>
 
 		<channels>
-			<!-- Temperatures -->
+			<!-- Primary control -->
 			<channel id="room-temperature" typeId="room-temperature"/>
 			<channel id="target-temperature" typeId="target-temperature"/>
-			<channel id="outside-temperature" typeId="outside-temperature"/>
-			<channel id="ch-water-temperature" typeId="ch-water-temperature"/>
-			<channel id="ch-return-temperature" typeId="ch-return-temperature"/>
-			<channel id="ch-water-pressure" typeId="ch-water-pressure"/>
-			<channel id="ch-setpoint" typeId="ch-setpoint"/>
+			<channel id="preset-mode" typeId="preset-mode"/>
+			<channel id="hvac-mode" typeId="hvac-mode"/>
+			<channel id="preset-mode-duration" typeId="preset-mode-duration"/>
+			<!-- Timed presets -->
+			<channel id="vacation-duration" typeId="vacation-duration"/>
+			<channel id="vacation-temperature" typeId="vacation-temperature"/>
+			<channel id="fireplace-duration" typeId="fireplace-duration"/>
+			<!-- Domestic hot water -->
 			<channel id="dhw-temperature" typeId="dhw-temperature"/>
 			<channel id="dhw-target-temperature" typeId="dhw-target-temperature"/>
-			<!-- Mode / control -->
-			<channel id="hvac-mode" typeId="hvac-mode"/>
-			<channel id="preset-mode" typeId="preset-mode"/>
-			<channel id="preset-mode-duration" typeId="preset-mode-duration"/>
-			<channel id="dhw-mode" typeId="dhw-mode"/>
-			<!-- Boiler state -->
+			<!-- Heating status -->
+			<channel id="outside-temperature" typeId="outside-temperature"/>
+			<channel id="ch-water-temperature" typeId="ch-water-temperature"/>
+			<channel id="ch-water-pressure" typeId="ch-water-pressure"/>
 			<channel id="flame" typeId="flame"/>
 			<channel id="burner-target" typeId="burner-target"/>
 			<channel id="modulation-level" typeId="modulation-level"/>
 			<channel id="burning-hours" typeId="burning-hours"/>
 			<channel id="time-to-target" typeId="time-to-target"/>
-			<!-- Vacation -->
-			<channel id="vacation-duration" typeId="vacation-duration"/>
-			<channel id="vacation-start" typeId="vacation-start"/>
-			<channel id="vacation-end" typeId="vacation-end"/>
-			<channel id="vacation-temperature" typeId="vacation-temperature"/>
-			<!-- Extend / fireplace -->
-			<channel id="extend-duration" typeId="extend-duration"/>
-			<channel id="fireplace-duration" typeId="fireplace-duration"/>
-			<!-- Weather / errors -->
 			<channel id="weather-status" typeId="weather-status"/>
+			<!-- Alerts -->
 			<channel id="device-errors" typeId="device-errors"/>
 			<channel id="boiler-errors" typeId="boiler-errors"/>
-			<!-- Advanced diagnostic channels -->
+			<!-- Advanced — boiler internals -->
+			<channel id="ch-return-temperature" typeId="ch-return-temperature"/>
+			<channel id="ch-setpoint" typeId="ch-setpoint"/>
+			<channel id="dhw-mode" typeId="dhw-mode"/>
+			<!-- Advanced — timed preset details -->
+			<channel id="vacation-start" typeId="vacation-start"/>
+			<channel id="vacation-end" typeId="vacation-end"/>
+			<channel id="vacation-remaining" typeId="vacation-remaining"/>
+			<channel id="extend-duration" typeId="extend-duration"/>
+			<channel id="extend-remaining" typeId="extend-remaining"/>
+			<channel id="fireplace-remaining" typeId="fireplace-remaining"/>
+			<!-- Advanced — diagnostics -->
 			<channel id="shown-set-temperature" typeId="shown-set-temperature"/>
 			<channel id="average-outside-temperature" typeId="average-outside-temperature"/>
 			<channel id="pcb-temperature" typeId="pcb-temperature"/>
@@ -58,9 +62,6 @@
 			<channel id="boiler-return-temperature" typeId="boiler-return-temperature"/>
 			<channel id="min-modulation-level" typeId="min-modulation-level"/>
 			<channel id="max-boiler-temperature" typeId="max-boiler-temperature"/>
-			<channel id="vacation-remaining" typeId="vacation-remaining"/>
-			<channel id="extend-remaining" typeId="extend-remaining"/>
-			<channel id="fireplace-remaining" typeId="fireplace-remaining"/>
 			<channel id="report-time" typeId="report-time"/>
 		</channels>
 
@@ -76,7 +77,7 @@
 	<channel-type id="room-temperature">
 		<item-type>Number:Temperature</item-type>
 		<label>Room Temperature</label>
-		<description>Current room temperature measured by the thermostat.</description>
+		<description>Room temperature as measured by the ATAG One thermostat's built-in sensor.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
@@ -99,8 +100,10 @@
 
 	<channel-type id="outside-temperature">
 		<item-type>Number:Temperature</item-type>
-		<label>Outside Temperature</label>
-		<description>Outside temperature from the sensor.</description>
+		<label>Outside Temperature (boiler estimate)</label>
+		<description>Outside temperature as estimated by the ATAG One boiler. May show a stale value when the heating
+			season is
+			inactive. For reliable year-round outdoor readings use an independent sensor.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
@@ -111,8 +114,10 @@
 
 	<channel-type id="ch-water-temperature">
 		<item-type>Number:Temperature</item-type>
-		<label>CH Water Temperature</label>
-		<description>Central heating circuit water temperature.</description>
+		<label>Heating Circuit Temperature</label>
+		<description>Current water temperature in the central heating circuit (Heizwasser). Reads ambient temperature
+			when the
+			boiler is idle.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
@@ -121,10 +126,10 @@
 		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
-	<channel-type id="ch-return-temperature">
+	<channel-type id="ch-return-temperature" advanced="true">
 		<item-type>Number:Temperature</item-type>
-		<label>CH Return Temperature</label>
-		<description>Central heating circuit return water temperature.</description>
+		<label>Heating Circuit Return Temperature</label>
+		<description>Temperature of water returning from the heating circuit back to the boiler.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
@@ -144,18 +149,20 @@
 		<state readOnly="true" pattern="%.2f %unit%"/>
 	</channel-type>
 
-	<channel-type id="ch-setpoint">
+	<channel-type id="ch-setpoint" advanced="true">
 		<item-type>Number:Temperature</item-type>
-		<label>CH Setpoint</label>
-		<description>Active setpoint sent to the boiler by the regulation algorithm.</description>
+		<label>Boiler Target Water Temperature</label>
+		<description>Target water temperature the boiler is currently trying to reach for the heating circuit. Reads
+			0 °C when
+			no heating demand is active.</description>
 		<category>Temperature</category>
 		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
 	<channel-type id="dhw-temperature">
 		<item-type>Number:Temperature</item-type>
-		<label>DHW Temperature</label>
-		<description>Domestic hot water temperature.</description>
+		<label>Hot Water Temperature</label>
+		<description>Current temperature of the domestic hot water supply (tap and shower water).</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
@@ -166,8 +173,8 @@
 
 	<channel-type id="dhw-target-temperature">
 		<item-type>Number:Temperature</item-type>
-		<label>DHW Target Temperature</label>
-		<description>Domestic hot water setpoint.</description>
+		<label>Hot Water Target Temperature</label>
+		<description>Active domestic hot water temperature setpoint (tap and shower water).</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Setpoint</tag>
@@ -195,7 +202,9 @@
 	<channel-type id="preset-mode">
 		<item-type>String</item-type>
 		<label>Preset Mode</label>
-		<description>Active heating preset — manual, auto (schedule), holiday, extend, or fireplace.</description>
+		<description>Active heating preset. Write auto to cancel any timed preset. Write holiday to activate vacation (set
+			vacation-duration first). Manual is read-only — it is set by the device when you adjust the temperature on the
+			display.</description>
 		<category>HVAC</category>
 		<tags>
 			<tag>Control</tag>
@@ -205,7 +214,6 @@
 				<option value="manual">Manual</option>
 				<option value="auto">Auto</option>
 				<option value="holiday">Holiday / Vacation</option>
-				<option value="extend">Extend</option>
 				<option value="fireplace">Fireplace</option>
 			</options>
 		</state>
@@ -214,11 +222,12 @@
 	<channel-type id="preset-mode-duration">
 		<item-type>Number:Time</item-type>
 		<label>Preset Mode Duration</label>
-		<description>Remaining duration of the active preset (seconds).</description>
+		<description>Remaining duration of the active timed preset (extend, vacation, or fireplace). UNDEF in manual or auto
+			mode.</description>
 		<state readOnly="true" pattern="%d %unit%"/>
 	</channel-type>
 
-	<channel-type id="dhw-mode">
+	<channel-type id="dhw-mode" advanced="true">
 		<item-type>Number</item-type>
 		<label>DHW Mode</label>
 		<description>Domestic hot water operating mode (raw device value).</description>
@@ -283,7 +292,7 @@
 		<state pattern="%.0f %unit%" min="1" max="365" step="1"/>
 	</channel-type>
 
-	<channel-type id="vacation-start">
+	<channel-type id="vacation-start" advanced="true">
 		<item-type>DateTime</item-type>
 		<label>Vacation Start</label>
 		<description>When the current holiday period started.</description>
@@ -295,7 +304,7 @@
 		<state readOnly="true"/>
 	</channel-type>
 
-	<channel-type id="vacation-end">
+	<channel-type id="vacation-end" advanced="true">
 		<item-type>DateTime</item-type>
 		<label>Vacation End</label>
 		<description>When the current holiday period ends.</description>
@@ -310,7 +319,8 @@
 	<channel-type id="vacation-temperature">
 		<item-type>Number:Temperature</item-type>
 		<label>Vacation Temperature</label>
-		<description>Room temperature setpoint during vacation mode.</description>
+		<description>Temperature setpoint for vacation mode. Reads the active setpoint when vacation is running; reads the
+			stored default otherwise. Writing while in vacation mode changes the active setpoint immediately.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Setpoint</tag>
@@ -319,18 +329,22 @@
 		<state pattern="%.1f %unit%" min="4" max="15" step="0.5"/>
 	</channel-type>
 
-	<channel-type id="extend-duration">
-		<item-type>Number:Time</item-type>
+	<channel-type id="extend-duration" advanced="true">
+		<item-type unitHint="h">Number:Time</item-type>
 		<label>Extend Duration</label>
-		<description>Duration for extend mode. Writing activates extend mode with this duration.</description>
-		<state pattern="%d %unit%"/>
+		<description>Stored default extend duration. Extend mode activates automatically when target-temperature is written
+			while the device is in auto mode; this channel reflects the configured default duration.</description>
+		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
 	<channel-type id="fireplace-duration">
-		<item-type>Number:Time</item-type>
+		<item-type unitHint="h">Number:Time</item-type>
 		<label>Fireplace Duration</label>
-		<description>Duration for fireplace mode. Writing activates fireplace mode with this duration.</description>
-		<state pattern="%d %unit%"/>
+		<description>Reads the device's stored default fireplace duration. Writing activates fireplace mode for exactly the
+			written duration and updates the stored default for future activations via preset-mode. Cancel by writing auto
+			to
+			preset-mode.</description>
+		<state pattern="%.1f %unit%" min="0.5" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="weather-status">
@@ -403,31 +417,34 @@
 	</channel-type>
 
 	<channel-type id="wifi-signal" advanced="true">
-		<item-type>Number</item-type>
+		<item-type unitHint="dBm">Number:Power</item-type>
 		<label>WiFi Signal</label>
-		<description>WiFi signal strength in dBm (negative — closer to 0 is stronger).</description>
+		<description>WiFi signal strength (negative — closer to 0 is stronger).</description>
 		<category>QualityOfService</category>
-		<state readOnly="true" pattern="%d dBm"/>
+		<state readOnly="true" pattern="%d %unit%"/>
 	</channel-type>
 
 	<channel-type id="voltage" advanced="true">
-		<item-type>Number</item-type>
+		<item-type unitHint="V">Number:ElectricPotential</item-type>
 		<label>Supply Voltage</label>
-		<description>Thermostat supply voltage (V).</description>
-		<state readOnly="true" pattern="%.2f V"/>
+		<description>Thermostat supply voltage.</description>
+		<state readOnly="true" pattern="%.2f %unit%"/>
 	</channel-type>
 
 	<channel-type id="current" advanced="true">
 		<item-type>Number</item-type>
-		<label>Supply Current</label>
-		<description>Thermostat supply current (device units).</description>
+		<label>Supply Current (raw)</label>
+		<description>Thermostat supply current in device-internal units; the physical unit is not documented by the
+			manufacturer.</description>
 		<state readOnly="true" pattern="%d"/>
 	</channel-type>
 
 	<channel-type id="power-consumption" advanced="true">
 		<item-type>Number</item-type>
-		<label>Power Consumption</label>
-		<description>Gas consumption counter (raw device value).</description>
+		<label>Gas Consumption Counter (raw)</label>
+		<description>Raw device counter believed to relate to gas consumption; the scaling factor and physical unit are
+			not
+			confirmed against a live device and are therefore not applied.</description>
 		<state readOnly="true" pattern="%d"/>
 	</channel-type>
 

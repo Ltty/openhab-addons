@@ -35,4 +35,12 @@ public class DeviceConfigUpdateDTO {
     public @Nullable Double room_temp_offs;
     public @Nullable Double outs_temp_offs;
     public @Nullable Integer privacy_mode;
+
+    /** True if at least one field has been set and this update carries a change to send. */
+    public boolean hasChanges() {
+        return start_vacation != null || ch_vacation_temp != null || frost_prot_enabled != null
+                || frost_prot_temp_room != null || summer_eco_mode != null || summer_eco_temp != null
+                || dhw_legion_enabled != null || disp_brightness != null || room_temp_offs != null
+                || outs_temp_offs != null || privacy_mode != null;
+    }
 }

@@ -54,10 +54,11 @@ import com.google.gson.JsonParser;
 public class AtagOneApiClient {
 
     /**
-     * Bitmask for retrieve: control(1)+schedules(2)+configuration(4)+report(8)+status(16)+details(64).
-     * wifi_scan(32) is deliberately excluded — it scans nearby APs and slows the response.
+     * Bitmask for retrieve: control(1)+schedules(2)+configuration(4)+report(8)+status(16)+details(64) = 95.
+     * wifi_scan(32) is deliberately excluded — it scans nearby APs and delays the response by several
+     * seconds. The wifi-signal channel is unaffected: rssi is reported in the report(8) section.
      */
-    private static final int INFO_BITMASK = 127;
+    private static final int INFO_BITMASK = 95;
     private static final int REQUEST_TIMEOUT_S = 5;
     private static final long MIN_INTERVAL_MS = 2_000L;
     private static final int MAX_RETRIES = 5;
@@ -101,7 +102,7 @@ public class AtagOneApiClient {
         root.add("pair_message", pairMsg);
 
         String responseJson = sendRequest("/pair", gson.toJson(root));
-        logger.info("pair raw response: {}", responseJson);
+        logger.trace("pair raw response: {}", responseJson);
         JsonObject reply = JsonParser.parseString(responseJson).getAsJsonObject().getAsJsonObject("pair_reply");
         if (reply == null) {
             throw new AtagOneCommunicationException("Missing pair_reply in response: " + responseJson);
@@ -134,7 +135,7 @@ public class AtagOneApiClient {
         root.add("retrieve_message", retrieveMsg);
 
         String responseJson = sendRequest("/retrieve", gson.toJson(root));
-        logger.info("retrieve raw response: {}", responseJson);
+        logger.trace("retrieve raw response: {}", responseJson);
         JsonObject reply = JsonParser.parseString(responseJson).getAsJsonObject().getAsJsonObject("retrieve_reply");
         if (reply == null) {
             throw new AtagOneCommunicationException("Missing retrieve_reply in response: " + responseJson);
@@ -147,7 +148,24 @@ public class AtagOneApiClient {
         if (result == null) {
             throw new AtagOneCommunicationException("Failed to parse retrieve_reply");
         }
+        validateComplete(result);
         return result;
+    }
+
+    /**
+     * Verifies that every section {@link org.openhab.binding.atagone.internal.AtagOneHandler#updateChannels}
+     * unconditionally dereferences is present. A firmware reply missing a section (e.g. during the boiler's
+     * post-write API reinitialization window) would otherwise reach the handler as a DTO with null fields and
+     * crash it with an NPE — which, thrown from a {@code scheduleWithFixedDelay} task, would silently and
+     * permanently stop all future polls.
+     */
+    static void validateComplete(RetrieveReplyDTO result) throws AtagOneCommunicationException {
+        if (result.report == null || result.control == null || result.configuration == null) {
+            throw new AtagOneCommunicationException("retrieve_reply missing required section(s)");
+        }
+        if (result.report.details == null) {
+            throw new AtagOneCommunicationException("retrieve_reply.report missing details section");
+        }
     }
 
     /**
@@ -216,6 +234,11 @@ public class AtagOneApiClient {
             }
         }
 
+        // The device is an HTTP/1.0 server that closes every connection after responding.
+        // Jetty's pool may hand us a stale half-closed connection on the first attempt,
+        // producing an EOFException that is not a real failure. We retry that one time for
+        // free; any subsequent EOF within the same call counts toward MAX_RETRIES normally.
+        boolean staleCorrectionUsed = false;
         Exception lastException = new AtagOneCommunicationException("Unreachable");
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
@@ -236,7 +259,11 @@ public class AtagOneApiClient {
                 logger.debug("Timeout on {} (attempt {}): {}", path, attempt + 1, e.getMessage());
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
-                if (cause instanceof EOFException || cause instanceof SocketTimeoutException) {
+                if (cause instanceof EOFException && !staleCorrectionUsed) {
+                    staleCorrectionUsed = true;
+                    logger.trace("Stale pooled connection on {} — retrying on fresh connection", path);
+                    attempt--; // don't count this against MAX_RETRIES
+                } else if (cause instanceof EOFException || cause instanceof SocketTimeoutException) {
                     lastException = e;
                     logger.debug("Transient error on {} (attempt {}): {}", path, attempt + 1, e.getMessage());
                 } else {

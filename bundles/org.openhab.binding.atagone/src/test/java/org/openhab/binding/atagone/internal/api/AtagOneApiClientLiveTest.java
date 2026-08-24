@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Florian Lettner - Initial contribution
  */
-@EnabledIfSystemProperty(named = "atag.host", matches = ".+")
+@EnabledIfSystemProperty(named = "atag.host", matches = ".+", disabledReason = "Only for manual execution against a real device.")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AtagOneApiClientLiveTest {
 

@@ -111,8 +111,7 @@ public class AtagOneBindingConstants {
             CH_MODE_HOLIDAY, "holiday", CH_MODE_EXTEND, "extend", CH_MODE_FIREPLACE, "fireplace");
 
     public static final Map<String, Integer> CH_MODE_BY_NAME = Map.of("manual", CH_MODE_MANUAL, "auto", CH_MODE_AUTO,
-            "holiday", CH_MODE_HOLIDAY, "vacation", CH_MODE_HOLIDAY, "extend", CH_MODE_EXTEND, "fireplace",
-            CH_MODE_FIREPLACE);
+            "holiday", CH_MODE_HOLIDAY, "extend", CH_MODE_EXTEND, "fireplace", CH_MODE_FIREPLACE);
 
     public static final Map<Integer, String> CH_CONTROL_MODE_NAMES = Map.of(CH_CONTROL_MODE_HEAT, "heat",
             CH_CONTROL_MODE_AUTO, "auto");
