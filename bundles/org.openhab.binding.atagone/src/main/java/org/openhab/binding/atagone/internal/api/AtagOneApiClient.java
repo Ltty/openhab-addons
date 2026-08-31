@@ -60,9 +60,20 @@ public class AtagOneApiClient {
      * seconds. The wifi-signal channel is unaffected: rssi is reported in the report(8) section.
      */
     private static final int INFO_BITMASK = 95;
-    private static final int REQUEST_TIMEOUT_S = 5;
-    private static final long MIN_INTERVAL_MS = 2_000L;
-    private static final int MAX_RETRIES = 5;
+    /*
+     * Timeout, rate-limit gap, and retry count were originally tuned defensively without a reference
+     * point. pyatag (https://github.com/MatsNl/pyatag), the reference client this and other ATAG ONE
+     * integrations are built on, uses a 1000ms rate-limit gap and no per-attempt timeout ceiling at
+     * all (relying on aiohttp's ~300s session default) — evidence this device's brief unresponsive
+     * windows are longer than 5s, not just occasional network noise. Loosened accordingly, though not
+     * copied outright: an unbounded timeout is unsafe for a polling binding's Thing status, and
+     * MAX_RETRIES stays well short of pyatag's 10 since retries and timeout compound — 10 attempts at
+     * 15s each could block a single poll() call for 150s, longer than even this binding's own
+     * refreshInterval.
+     */
+    private static final int REQUEST_TIMEOUT_S = 15;
+    private static final long MIN_INTERVAL_MS = 1_000L;
+    private static final int MAX_RETRIES = 7;
 
     private final Logger logger = LoggerFactory.getLogger(AtagOneApiClient.class);
 
