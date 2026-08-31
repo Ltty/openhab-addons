@@ -37,7 +37,6 @@ public class ControlUpdateDTO {
     public @Nullable Integer ch_mode;
     public @Nullable Long ch_mode_duration;
     public @Nullable Double ch_mode_temp;
-    public @Nullable Double dhw_temp_setp;
     public @Nullable Long extend_duration;
     public @Nullable Long fireplace_duration;
     public @Nullable Long vacation_duration;

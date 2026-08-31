@@ -401,14 +401,16 @@ public class AtagOneHandler extends BaseThingHandler {
                 return false;
 
             case CHANNEL_DHW_TARGET_TEMPERATURE:
-                if (command instanceof QuantityType<?> qt) {
-                    QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
-                    if (celsius == null) {
-                        return false;
-                    }
-                    dto.dhw_temp_setp = celsius.doubleValue();
-                    return true;
-                }
+                /*
+                 * control.dhw_temp_setp is read-only/derived — confirmed live: writing it is
+                 * silently accepted by the device but never changes the actual value, which instead
+                 * tracks whichever schedules.dhw_schedule entry is currently active. The real
+                 * user-settable field is schedules.dhw_schedule.base_temp, requiring the full
+                 * schedule object to be sent — not implemented yet (schedule support is a future
+                 * phase). Rejected here rather than silently accepted and ignored.
+                 */
+                logger.warn(
+                        "dhw-target-temperature is read-only; the device has no direct control field for it, see DEVELOPERS.md");
                 return false;
 
             case CHANNEL_EXTEND_DURATION:
