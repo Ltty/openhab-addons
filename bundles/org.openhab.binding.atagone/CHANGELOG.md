@@ -4,38 +4,54 @@ Version numbers here are informal, for tracking this binding independently of op
 release train (this binding lives in the official `openhab-addons` repo, which doesn't version
 individual bindings on their own). Use these when discussing builds on the community forum.
 
-## 0.1.0-beta — 2026-08-31
+## 0.2.0-beta — 2026-08-31
 
-Initial public build.
+Changes since 0.1.0-beta: a redesign of how modes are activated/cancelled, new Thing Actions, a
+regrouped and renamed channel taxonomy, and several bugs found and fixed via live verification
+against the device.
 
-### What's included
+### What's changed
 
-- **Auto-discovery** via UDP broadcast (port 11000) and local-API pairing — no cloud account,
-  no MQTT broker.
-- **42 channels** across five groups:
-  - **Operating Mode** (`control#`) — active preset (`auto`/`holiday`/`extend`/`fireplace`,
-    `manual` read-only), timed-preset durations and remaining-time countdowns, vacation
-    setpoint/start/end.
-  - **Central Heating** (`heating#`) — room/target temperature, outside temperature, weather
-    status, circuit water temperature/pressure/return, control mode (room vs. weather-compensated),
-    flame, burner target, modulation level, burning hours, and advanced diagnostics (boiler flow/
-    return temperature, PCB temperature, min modulation level).
-  - **Hot Water** (`hotwater#`) — current temperature, flow rate. (See Known limitations below
-    for the target-temperature channel.)
-  - **Device** (`device#`) — WiFi signal, supply voltage, controller resets, memory allocation,
-    report timestamp.
-  - **Alerts** (`alerts#`) — device and boiler error codes.
-- **Thing Actions** for single-write custom-duration control, since the duration channels are
-  pure value-setters (see below): `activateVacation(seconds)`, `activateExtend(seconds)`,
-  `activateFireplace(seconds)`, `cancelMode()`.
-- **Trigger model:** `preset-mode` is the only channel that can activate or cancel a mode.
+- **42 channels, regrouped by subsystem instead of protocol block.** `control` is now "Operating
+  Mode" (preset/timed-mode only — target-temperature and dhw-target-temperature moved to their
+  own subsystems). `settings` is gone; `ch-control-mode` moved into Central Heating. Several
+  channels dropped redundant subsystem prefixes (`dhw-temperature` → `hotwater#temperature`,
+  `ch-water-temperature` → `heating#water-temperature`, etc). All descriptions rewritten for end
+  users. **Breaking** — see Known limitations below for the upgrade path.
+- **Trigger model:** `preset-mode` is now the only channel that can activate or cancel a mode.
   Writing a duration channel only updates the stored value for next time — it never triggers
-  activation on its own. This matches how the device itself treats a duration field written
-  alone, and avoids a duration write accidentally flipping the active mode.
-- Timed-preset durations must be whole units (hours for extend/fireplace, days for vacation) —
+  activation on its own. Matches how the device itself treats a duration field written alone, and
+  avoids a duration write accidentally flipping the active mode.
+- **New Thing Actions** for single-write custom-duration control, since duration channels no
+  longer trigger activation: `activateVacation(seconds)`, `activateExtend(seconds)`,
+  `activateFireplace(seconds)`, `cancelMode()`.
+- Timed-preset durations must now be whole units (hours for extend/fireplace, days for vacation) —
   enforced client-side, both on the channel and the action path. A non-conforming value doesn't
   fail safely on the device (it triggers the same physical-confirmation/reboot pathway as a
   cancel), so it's rejected before ever reaching the device.
+- **Fixed:** `cancelMode()` against a pending (future-scheduled, not-yet-active) vacation used to
+  report "nothing to cancel" and leave the schedule fully armed. Now correctly clears it.
+- **Fixed:** `hotwater#target-temperature` writes were silently accepted but never took effect —
+  the device field behind it turned out to be read-only/derived, not the actual control target.
+  See Known limitations.
+- Loosened the local API client's connection timeout, retry count, and rate-limit gap — the
+  previous values were tuned defensively without a reference point and are the likely cause of the
+  binding going `OFFLINE` more often than other integrations polling the same device.
+
+### Full current channel list
+
+- **Operating Mode** (`control#`) — active preset (`auto`/`holiday`/`extend`/`fireplace`,
+  `manual` read-only), timed-preset durations and remaining-time countdowns, vacation
+  setpoint/start/end.
+- **Central Heating** (`heating#`) — room/target temperature, outside temperature, weather
+  status, circuit water temperature/pressure/return, control mode (room vs. weather-compensated),
+  flame, burner target, modulation level, burning hours, and advanced diagnostics (boiler flow/
+  return temperature, PCB temperature, min modulation level).
+- **Hot Water** (`hotwater#`) — current temperature, flow rate. (See Known limitations below
+  for the target-temperature channel.)
+- **Device** (`device#`) — WiFi signal, supply voltage, controller resets, memory allocation,
+  report timestamp.
+- **Alerts** (`alerts#`) — device and boiler error codes.
 
 ### Known limitations
 
@@ -65,3 +81,13 @@ Initial public build.
 
 Full field-by-field API documentation, including what's verified vs. inferred, lives in
 `DEVELOPERS.md` in this bundle.
+
+## 0.1.0-beta — 2026-08-20 to 2026-08-25
+
+Initial release. Auto-discovery via UDP broadcast (port 11000) and local-API pairing — no cloud
+account, no MQTT broker. Ungrouped channels for room/target temperature, central heating circuit
+status (water temperature/pressure/return, flame, burner target, modulation level), hot water
+temperature, weather status, device diagnostics (WiFi signal, voltage, resets), and device/boiler
+error codes. Preset-mode writes for holiday/extend/fireplace, including vacation start/end/
+remaining-duration channels. Superseded by 0.2.0-beta's channel regrouping and trigger-model
+redesign — see above for the current, non-breaking-if-you're-just-installing-now state.
