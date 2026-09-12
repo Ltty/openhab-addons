@@ -145,6 +145,14 @@ unannotated (Gson-friendly, matches the `zwavejs`/`homewizard` pattern exactly).
   time — it does not start holiday mode. Resets to 0 each time holiday mode ends."` This is a genuinely
   new, concrete, low-risk finding (not from the existing threads) worth fixing before the next push,
   since it's the identical pattern the maintainer already flagged once.
+- **README heading conventions** — two deviations from the exemplar skeleton
+  (`remehaheating`/`homewizard`/`zwavejs` all follow it): the actions section is titled `## Actions`
+  rather than the conventional `## Rule Actions`, and there is no `## Thing Status` section describing
+  what `ONLINE`/`OFFLINE`/`CONFIGURATION_PENDING` mean for this binding specifically (relevant here
+  since the pairing flow has a real `OFFLINE / CONFIGURATION_PENDING` state worth documenting). Neither
+  is a rule violation — no exemplar's heading set is machine-enforced — but both are easy, low-risk
+  polish: rename the heading, and add a short `## Thing Status` section between `## Pairing` and
+  `## Thing Configuration` covering the pairing-pending state already described in prose elsewhere.
 
 ---
 
@@ -224,9 +232,24 @@ $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot"
   is required). This file doesn't exist on the PR branch, so it doesn't affect PR #21481, but it means
   `mvn clean install` (no skip flags) is currently red on the branch new development happens on. Fix
   before the next phase's live-test gate, since that gate requires a clean full build.
-- `mvn i18n:generate-default-translations` and a full `spotless:check` were not run separately in this
-  pass — `spotless:apply` was already applied as part of `clean install`'s `initialize` phase (bound at
-  that phase in the parent POM) and produced no diff, which is equivalent confirmation for this bundle.
+- **`mvn spotless:check`, run standalone: passes cleanly**, no diff.
+- **`mvn i18n:generate-default-translations`, run standalone: produces a 2-line diff** in
+  `atagone.properties` — a real, if cosmetic, finding. The generator lowercases the free-text header
+  comment it emits:
+  ```diff
+  -# ATAG ONE Binding i18n — English (default)
+  -# Generated keys referenced via @text/... in AtagOneHandler.java
+  +# atag one binding i18n — english (default)
+  +# generated keys referenced via @text/... in atagonehandler.java
+  ```
+  The committed file has clearly been hand-capitalized after an earlier generation. Not CI-enforced
+  (the plugin isn't bound to any build phase — confirmed in `pom.xml`'s `pluginManagement` — so nothing
+  runs it automatically), but anyone who regenerates by hand and commits the raw output will silently
+  flatten the casing again. No functional impact (the header is a comment; every real key/value pair
+  the tool wrote at `atagone.properties:1-142` matched the committed file with zero diff). **Optional
+  fix:** either accept the tool's lowercase output as canonical, or leave a one-line note in
+  `dev-notes/DEVELOPERS.md` that the header comment is hand-maintained and regeneration will need its
+  casing restored.
 
 ---
 
@@ -263,3 +286,27 @@ branch now:
   port, rather than fixing twice.
 - The dev branch's full build is currently red (markdownlint on `DEVELOPERS.md`, §7) — fix before the
   next live-test-gated phase.
+
+---
+
+## 10. Altitude and structure (`thing-types.xml`, `AtagOneHandler.java`, test resources)
+
+- **`thing-types.xml`** is 535 lines, 42 `<channel-type>` definitions, 21 `advanced="true"` — larger
+  than `remehaheating` (163 lines, single boiler thing) but proportional to `homewizard`'s *actual*
+  total once its per-device-type XML files are summed (1097 lines across 6 files for 5 distinct
+  hardware variants). ATAG ONE has one thing type but five real subsystems (control/heating/hotwater/
+  device/alerts) — the channel count tracks genuine protocol surface, not padding. `zwavejs`'s 61-line
+  file isn't a fair comparison: it generates channel-types dynamically at runtime instead of declaring
+  them statically. **No action needed** — the size is explained, not excessive.
+- **`AtagOneHandler.java`** is 843 lines, 29 methods. Roughly 300 of those lines (`buildControlUpdate`
+  plus the four `compose*Activation`/`composeCancel` methods, `AtagOneHandler.java:262-560`) are mode
+  composition logic. These methods already take their DTOs as parameters rather than reading handler
+  fields, so they're effectively stateless and a clean extraction candidate — e.g. an
+  `AtagOneModeComposer` class — if the handler grows further. Not urgent at the current size (comparable
+  single-file handlers exist among the exemplars, e.g. `zwavejs`'s `ZwaveJSNodeHandler.java` at 931
+  lines), but worth planning for before Phase E/F's config-bundle work adds more branches to the same
+  file.
+- **`src/test/resources/logback-test.xml`** — confirmed atypical: none of the four reference bindings
+  (`zwavejs`, `homewizard`, `remehaheating`, `plugwiseha`) ship one. Low risk either way (test-only,
+  doesn't affect the shipped bundle), but if it's not solving an active problem (e.g. noisy test output),
+  removing it would tighten the file set to what every exemplar actually ships.
