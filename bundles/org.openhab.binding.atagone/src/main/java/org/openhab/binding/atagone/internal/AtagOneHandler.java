@@ -783,6 +783,12 @@ public class AtagOneHandler extends BaseThingHandler {
                 new QuantityType<>(r.report.details.max_boiler_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_REPORT_TIME, new DateTimeType(AtagEpoch.toZonedDateTime(r.report.report_time)));
 
+        // Schedules — fallback setpoints outside any active entry
+        updateIfChanged(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE,
+                new QuantityType<>(r.schedules.ch_schedule.base_temp, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
+                new QuantityType<>(r.schedules.dhw_schedule.base_temp, SIUnits.CELSIUS));
+
         // Control — setpoints and modes
         updateIfChanged(CHANNEL_TARGET_TEMPERATURE, new QuantityType<>(r.control.ch_mode_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_CONTROL_MODE,

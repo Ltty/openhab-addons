@@ -77,6 +77,7 @@
 			<channel id="boiler-temperature" typeId="boiler-temperature"/>
 			<channel id="boiler-return-temperature" typeId="boiler-return-temperature"/>
 			<channel id="max-boiler-temperature" typeId="max-boiler-temperature"/>
+			<channel id="schedule-base-temperature" typeId="ch-schedule-base-temperature"/>
 		</channels>
 	</channel-group-type>
 
@@ -87,6 +88,7 @@
 			<channel id="temperature" typeId="dhw-temperature"/>
 			<channel id="target-temperature" typeId="dhw-target-temperature"/>
 			<channel id="flow-rate" typeId="dhw-flow-rate"/>
+			<channel id="schedule-base-temperature" typeId="dhw-schedule-base-temperature"/>
 		</channels>
 	</channel-group-type>
 
@@ -191,6 +193,19 @@
 		<state readOnly="true" pattern="%.2f %unit%"/>
 	</channel-type>
 
+	<channel-type id="ch-schedule-base-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Schedule Temperature</label>
+		<description>Central heating schedule's fallback setpoint for any time not covered by a scheduled
+			period.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
 	<channel-type id="ch-setpoint" advanced="true">
 		<item-type>Number:Temperature</item-type>
 		<label>Boiler Target Water Temperature</label>
@@ -208,6 +223,19 @@
 		<category>Temperature</category>
 		<tags>
 			<tag>Measurement</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="dhw-schedule-base-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Schedule Temperature</label>
+		<description>Hot water schedule's fallback setpoint for any time not covered by a scheduled
+			period.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
 		<state readOnly="true" pattern="%.1f %unit%"/>

@@ -319,10 +319,11 @@ a distinctive non-zero value via the app and see which field changes.
 
 ## `schedules` block
 
-**Present in every `/retrieve` response (bit 2 of the info bitmask) and currently discarded
-entirely** — no `schedules` field exists on `RetrieveReplyDTO`, so Gson silently drops the whole
-object on every poll. Full implementation (read and write) is a planned future phase; this section
-specifies the structure as observed, since that work will build directly on it.
+**Present in every `/retrieve` response (bit 2 of the info bitmask).** `base_temp` for both schedules
+is read and exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`
+(advanced, read-only) as of Phase B. `entries` is parsed but not yet surfaced anywhere — full
+per-entry read/write support is a later phase; this section specifies the structure as observed,
+since that work will build directly on it.
 
 ```json
 "schedules": {
@@ -352,9 +353,10 @@ between the two schedules in this capture:
   `base_temp` (55.0) is never reached in this capture. Whether it is a genuine fallback value or an
   inert default cannot be determined from a schedule with no gap to expose it.
 
-**Write shape: entirely undocumented.** No schedule write has been attempted against this device.
-Establishing the write payload shape is the first task of schedule implementation, not something
-this document can specify yet.
+**Write shape: VERIFIED for `base_temp`.** Writing `dhw_schedule.base_temp` requires sending the
+complete `dhw_schedule` object (`entries` resent unchanged, `base_temp` changed) — a partial write of
+`base_temp` alone was not accepted. Confirmed live, twice. No entry-level write (changing a triple's
+`start`/`end`/`temp`) has been attempted; that shape remains undocumented.
 
 ---
 
@@ -490,7 +492,7 @@ candidate contributors, none isolated:
 - `control.weather_temp` — the weather-service outdoor temperature, distinct from `report.outside_temp` (the boiler's own estimate, documented to go stale outside the heating season). The two are genuinely different data sources.
 - `report.dhw_water_pres` — pairs with the already-exposed `heating#water-pressure`; no reason DHW pressure is missing while CH pressure is present.
 - `report.details.regulation_state` — cheap, useful "is the regulation algorithm active" status, unlike the other `report.details` internals which have no external meaning.
-- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — once schedule support exists. Originally thought to only answer "what temperature applies when no schedule block is active"; now confirmed (2026-08-31) that `dhw_schedule.base_temp` is also the **actual writable target** for changing the DHW setpoint — `control.dhw_temp_setp` looked like that target but is read-only/derived. Writing `base_temp` requires sending the complete `dhw_schedule` object (`entries` included), not `base_temp` alone. `hotwater#target-temperature` should become writable again once this write path is implemented, targeting `base_temp` instead of `dhw_temp_setp`.
+- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. Originally thought to only answer "what temperature applies when no schedule block is active"; now confirmed (2026-08-31) that `dhw_schedule.base_temp` is also the **actual writable target** for changing the DHW setpoint — `control.dhw_temp_setp` looked like that target but is read-only/derived. Writing `base_temp` requires sending the complete `dhw_schedule` object (`entries` included), not `base_temp` alone — VERIFIED (see the `schedules` section's Write shape). `hotwater#target-temperature` should become writable again once this write path is implemented (Phase C), targeting `base_temp` instead of `dhw_temp_setp`.
 
 **Recommended to expose as Thing properties (static identity, not channels):**
 
@@ -599,5 +601,6 @@ deliberately varied field.
    1500 → 1000 → 500 ms) and find where empty replies start appearing consistently rather than
    intermittently. Confounded by the device's general flakiness (empty replies happen at any
    interval), so look for a change in _rate_, not a hard cutoff.
-1. What is the write payload shape for `schedules`? (Not attempted; first task of schedule
-   implementation.)
+1. What is the write payload shape for a single `entries` triple (changing `start`/`end`/`temp`
+   rather than `base_temp`)? Not attempted — `base_temp`'s shape is VERIFIED, see the `schedules`
+   section's Write shape.

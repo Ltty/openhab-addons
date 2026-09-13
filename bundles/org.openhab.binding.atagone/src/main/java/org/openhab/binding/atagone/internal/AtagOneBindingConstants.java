@@ -87,6 +87,8 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_VOLTAGE = "device#voltage";
     public static final String CHANNEL_RESETS = "device#resets";
     public static final String CHANNEL_MEMORY_ALLOCATION = "device#memory-allocation";
+    public static final String CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE = "heating#schedule-base-temperature";
+    public static final String CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE = "hotwater#schedule-base-temperature";
 
     /*
      * Advanced writable device-configuration channels — declared but not yet wired to any

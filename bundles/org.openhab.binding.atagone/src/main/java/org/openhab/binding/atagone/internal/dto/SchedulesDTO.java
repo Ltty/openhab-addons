@@ -15,18 +15,14 @@ package org.openhab.binding.atagone.internal.dto;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
- * Gson DTO for the {@code retrieve_reply} object returned by {@code POST /retrieve}.
+ * Gson DTO for the {@code schedules} block in a {@code retrieve_reply}.
  *
  * @author Florian Lettner - Initial contribution
  */
 @NonNullByDefault({})
-public class RetrieveReplyDTO {
-    public int seqnr;
-    /** 1=pending, 2=granted, 3=denied. */
-    public int acc_status;
-    public StatusDTO status;
-    public ReportDTO report;
-    public ControlDTO control;
-    public SchedulesDTO schedules;
-    public DeviceConfigDTO configuration;
+public class SchedulesDTO {
+    /** Central heating schedule. */
+    public ScheduleDTO ch_schedule;
+    /** Domestic hot water schedule. */
+    public ScheduleDTO dhw_schedule;
 }

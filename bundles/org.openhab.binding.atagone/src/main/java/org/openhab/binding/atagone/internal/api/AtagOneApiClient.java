@@ -196,11 +196,15 @@ public class AtagOneApiClient {
      * permanently stop all future polls.
      */
     static void validateComplete(RetrieveReplyDTO result) throws AtagOneCommunicationException {
-        if (result.report == null || result.control == null || result.configuration == null) {
+        if (result.report == null || result.control == null || result.schedules == null
+                || result.configuration == null) {
             throw new AtagOneCommunicationException("retrieve_reply missing required section(s)");
         }
         if (result.report.details == null) {
             throw new AtagOneCommunicationException("retrieve_reply.report missing details section");
+        }
+        if (result.schedules.ch_schedule == null || result.schedules.dhw_schedule == null) {
+            throw new AtagOneCommunicationException("retrieve_reply.schedules missing ch_schedule/dhw_schedule");
         }
     }
 
