@@ -511,6 +511,26 @@ direction. `resets` never moved. The room→weather write returned a client-side
 within 15s) rather than an empty reply or `acc_status`, yet had still applied — see the timeout note
 above.
 
+### Settings channels (Phase F)
+
+**Implemented, 2026-09-13** — all remaining "future settings channels" from the placement table above
+(except the still-ambiguous outdoor-temp correction fields, deliberately deferred) are wired as
+channels, following the exact same `fillConfigBundle` full-bundle write pattern as
+`ch_control_mode`: every write composes the one changed field alongside the ~19 other confirmed
+`configuration` fields at their last-polled value.
+
+**Live write gate, VERIFIED 2026-09-13.** One representative field per group, each written then
+restored, with a full `configuration` diff before/after every step:
+
+- Heating settings group: `climate_zone` -10 → -11 → -10.
+- Hot water / legionella group: `dhw_legion_day` 7 → 3 → 7.
+- Control defaults group: `ch_mode_extend` 3600 → 7200 → 3600.
+- `disp_brightness` (dedicated test, outside the 19-field bundle): 30 → 50 → 30.
+
+All four: `acc_status:2`, only the targeted field changed in either direction, zero drift on any other
+field, `resets` never moved (stayed at 6 throughout). A final diff against the very first pre-test
+baseline confirms the device ended in exactly its starting configuration.
+
 ## Writability policy
 
 **Writable = only what ATAG's own app or cloud portal exposes as user-changeable.** This is a
@@ -598,16 +618,20 @@ subsystem prefix from a channel id once its group already carries it (`hotwater#
 (`heating#room-temperature` keeps `room`, since `heating` holds both room-air and boiler-water
 readings).
 
-**Future settings channels — placement, per the rule above (not yet implemented):**
+**Settings channels — placement, per the rule above.** Implemented (Phase F, 2026-09-13): all rows
+below except the outdoor-temp correction fields are wired as channels, using the same
+`fillConfigBundle` full-configuration-bundle write pattern Phase E established for
+`heating#control-mode`. Code-complete and live write gate VERIFIED (see Phase F entry below).
 
 | Fields | Group | Notes |
 |---|---|---|
-| `frost_prot_*`, `summer_eco_*`, `ch_heating_type`, `ch_isolation`, `ch_building_size`, `wdr_temps_influence`, `climate_zone`, `max_preheat`, outdoor-temp correction (`wd_temp_offs`/`outs_temp_offs`) | `heating` | advanced, writable |
+| `frost_prot_*`, `summer_eco_*`, `ch_heating_type`, `ch_isolation`, `ch_building_size`, `wdr_temps_influence`, `climate_zone`, `max_preheat` | `heating` | advanced, writable |
+| outdoor-temp correction (`wd_temp_offs`/`outs_temp_offs`) | — | **deliberately deferred, not implemented** — which field is the real outdoor-temperature correction is still unresolved (see Open questions below); revisit once disambiguated |
 | `dhw_legion_enabled`/`_day`/`_time` | `hotwater` | advanced, writable |
 | `ch_mode_vacation`, `ch_mode_extend` | `control` | advanced — preset defaults, not subsystem settings |
-| `disp_brightness` | `device` | advanced, writable **after a live write test** (currently "W (app) — untested"). The one device-level setting with real automation value: dimming the display at night |
-| `time_zone` | `device` | advanced, **read-only initially** — only `1=Berlin` is verified; the other 9 enum values are inferred from dropdown order only, and writing an unverified enum to device config is the exact risk class that has caused live incidents in this project before. Worth exposing read-only regardless: schedule timing depends on it |
-| `language` | `device` | advanced, **read-only** — enum is verified, but changing the thermostat's display language from openHAB has near-zero automation value |
+| `disp_brightness` | `device` | advanced, writable — VERIFIED via its own dedicated live test, separate from the rest of the Phase F group |
+| `time_zone` | `device` | advanced, **read-only** — only `1=Berlin` is verified; the other 9 enum values are inferred from dropdown order only, and writing an unverified enum to device config is the exact risk class that has caused live incidents in this project before. Exposed read-only regardless: schedule timing depends on it |
+| `language` | `device` | advanced, **read-only** — enum is verified for this device (`4=German`), but changing the thermostat's display language from openHAB has near-zero automation value |
 | `dhw_min_set`/`dhw_max_set`, `ch_min_set`/`ch_max_set` | — | Not channels: dynamic state description provider (see above) |
 | `boiler_id`, `installer_id`, firmware version | — | Not channels: Thing properties (see above) |
 
