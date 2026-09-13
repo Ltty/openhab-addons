@@ -102,9 +102,13 @@ and omitted from the request entirely when there is nothing to change in it.
 | 3 | Denied |
 
 A response body can also arrive empty (`curl: (52) Empty reply from server`) — VERIFIED to happen
-both as a transient artifact unrelated to write success, and as a symptom of a broader device
-unresponsiveness episode (see Known instability, below). An empty reply must never be treated as a
-definitive failure signal on its own — always confirm via a follow-up `/retrieve`.
+both as a transient artifact unrelated to write success (for `/retrieve`, reliably so — reads recover
+within 1-2 retries essentially every time), and as a symptom of a broader device unresponsiveness
+episode (see Known instability, below). For **writes specifically**, a live session on 2026-09-13
+found the correlation clean in every case observed: an empty reply on `/update` always meant the write
+had not applied; every write that returned an immediate `acc_status:2` had applied. Still worth
+confirming a write via a follow-up `/retrieve` when it matters, but an empty reply on `/update` is a
+much stronger failure signal in practice than "must never be treated as definitive" suggests.
 
 ## The `info` bitmask
 
@@ -516,6 +520,15 @@ candidate contributors, none isolated:
    consistently force HTTP/1.0 until late in this investigation
 1. The 2000 ms rate limit not being respected by manual testing, particularly on same-second retries
    after an empty-reply failure
+
+**A related but distinct pattern, VERIFIED 2026-09-13**: writes specifically failing intermittently
+over a much longer stretch (~15 minutes) while `/retrieve` kept succeeding throughout (aside from its
+own normal 1-2-retry flakiness) — not the same as the fully-unresponsive episodes above, where reads
+fail too. Roughly 5 of 6 `/update schedules` calls returned empty during this window; the ones that
+returned an immediate `acc_status:2` all applied correctly, confirming this wasn't a case of writes
+silently succeeding despite an empty reply (see the `acc_status`/empty-reply note above). `resets`
+never incremented. No trigger identified — the window began and ended without any corresponding
+change in write shape, mode, or other observable state.
 
 ## Gap analysis — what the binding should expose but doesn't
 
