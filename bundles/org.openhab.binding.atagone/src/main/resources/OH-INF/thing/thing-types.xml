@@ -50,6 +50,8 @@
 			<channel id="extend-remaining" typeId="extend-remaining"/>
 			<channel id="fireplace-duration" typeId="fireplace-duration"/>
 			<channel id="fireplace-remaining" typeId="fireplace-remaining"/>
+			<channel id="vacation-duration-default" typeId="vacation-duration-default"/>
+			<channel id="extend-duration-default" typeId="extend-duration-default"/>
 		</channels>
 	</channel-group-type>
 
@@ -78,6 +80,17 @@
 			<channel id="boiler-return-temperature" typeId="boiler-return-temperature"/>
 			<channel id="max-boiler-temperature" typeId="max-boiler-temperature"/>
 			<channel id="schedule-base-temperature" typeId="ch-schedule-base-temperature"/>
+			<channel id="frost-protection" typeId="frost-protection"/>
+			<channel id="frost-protection-temperature-room" typeId="frost-protection-temperature-room"/>
+			<channel id="frost-protection-temperature-outside" typeId="frost-protection-temperature-outside"/>
+			<channel id="summer-eco-mode" typeId="summer-eco-mode"/>
+			<channel id="summer-eco-temperature" typeId="summer-eco-temperature"/>
+			<channel id="heating-type" typeId="heating-type"/>
+			<channel id="isolation" typeId="isolation"/>
+			<channel id="building-size" typeId="building-size"/>
+			<channel id="wdr-temperature-influence" typeId="wdr-temperature-influence"/>
+			<channel id="climate-zone" typeId="climate-zone"/>
+			<channel id="max-preheat" typeId="max-preheat"/>
 		</channels>
 	</channel-group-type>
 
@@ -89,6 +102,9 @@
 			<channel id="target-temperature" typeId="dhw-target-temperature"/>
 			<channel id="flow-rate" typeId="dhw-flow-rate"/>
 			<channel id="schedule-base-temperature" typeId="dhw-schedule-base-temperature"/>
+			<channel id="legionella-protection" typeId="legionella-protection"/>
+			<channel id="legionella-protection-day" typeId="legionella-protection-day"/>
+			<channel id="legionella-protection-time" typeId="legionella-protection-time"/>
 		</channels>
 	</channel-group-type>
 
@@ -102,6 +118,9 @@
 			<channel id="memory-allocation" typeId="memory-allocation"/>
 			<channel id="pcb-temperature" typeId="pcb-temperature"/>
 			<channel id="report-time" typeId="report-time"/>
+			<channel id="display-brightness" typeId="display-brightness"/>
+			<channel id="time-zone" typeId="time-zone"/>
+			<channel id="language" typeId="language"/>
 		</channels>
 	</channel-group-type>
 
@@ -591,6 +610,236 @@
 			<tag>Status</tag>
 			<tag>Timestamp</tag>
 		</tags>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- ═══════════════════════════════════════════════════════════════════════
+		Settings channels (Phase F) — set-once configuration, all advanced="true".
+		Writing any of these bundles all ~19 writable configuration fields at
+		their current value alongside the one being changed — see
+		AtagOneHandler.fillConfigBundle() and DEVELOPERS.md's write semantics.
+		═══════════════════════════════════════════════════════════════════════ -->
+
+	<channel-type id="vacation-duration-default" advanced="true">
+		<item-type unitHint="d">Number:Time</item-type>
+		<label>Vacation Duration Default</label>
+		<description>The device's stored default vacation duration, used when activating holiday mode with no explicit
+			duration set.</description>
+		<category>Time</category>
+		<tags>
+			<tag>Control</tag>
+		</tags>
+		<state pattern="%.0f %unit%" min="1" max="365" step="1"/>
+	</channel-type>
+
+	<channel-type id="extend-duration-default" advanced="true">
+		<item-type unitHint="h">Number:Time</item-type>
+		<label>Extend Duration Default</label>
+		<description>The device's stored default extend duration, used when activating extend mode with no explicit duration
+			set.</description>
+		<category>Time</category>
+		<tags>
+			<tag>Control</tag>
+		</tags>
+		<state pattern="%.0f %unit%" min="1" step="1"/>
+	</channel-type>
+
+	<channel-type id="frost-protection" advanced="true">
+		<item-type>String</item-type>
+		<label>Frost Protection</label>
+		<description>Which sensor(s) frost protection uses to decide when to activate.</description>
+		<category>HVAC</category>
+		<tags>
+			<tag>Control</tag>
+			<tag>Mode</tag>
+		</tags>
+		<state>
+			<options>
+				<option value="off">Off</option>
+				<option value="outdoor">Outdoor Sensor</option>
+				<option value="indoor">Indoor Sensor</option>
+				<option value="both">Indoor and Outdoor</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="frost-protection-temperature-room" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Frost Protection Room</label>
+		<description>Indoor temperature threshold below which frost protection activates.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state pattern="%.1f %unit%" min="0" max="15" step="0.5"/>
+	</channel-type>
+
+	<channel-type id="frost-protection-temperature-outside" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Frost Protection Outside</label>
+		<description>Outdoor temperature threshold below which frost protection activates.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state pattern="%.1f %unit%" min="-20" max="10" step="0.5"/>
+	</channel-type>
+
+	<channel-type id="summer-eco-mode" advanced="true">
+		<item-type>Switch</item-type>
+		<label>Summer Eco Mode</label>
+		<description>Reduces central heating activity once the outside temperature is warm enough.</description>
+		<category>HVAC</category>
+		<state/>
+	</channel-type>
+
+	<channel-type id="summer-eco-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Summer Eco Temperature</label>
+		<description>Outside temperature above which summer eco mode activates.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state pattern="%.1f %unit%" min="10" max="30" step="0.5"/>
+	</channel-type>
+
+	<channel-type id="heating-type" advanced="true">
+		<item-type>String</item-type>
+		<label>Heating Type</label>
+		<description>The type of central heating system installed, used by the weather-compensation algorithm.</description>
+		<state>
+			<options>
+				<option value="air-heating">Air Heating</option>
+				<option value="convector">Convector</option>
+				<option value="radiator">Radiator</option>
+				<option value="radiator-underfloor">Radiator and Underfloor</option>
+				<option value="underfloor">Underfloor</option>
+				<option value="underfloor-radiator">Underfloor and Radiator</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="isolation" advanced="true">
+		<item-type>String</item-type>
+		<label>Isolation Quality</label>
+		<description>The building's insulation quality, used by the weather-compensation algorithm.</description>
+		<state>
+			<options>
+				<option value="poor">Poor</option>
+				<option value="average">Average</option>
+				<option value="good">Good</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="building-size" advanced="true">
+		<item-type>String</item-type>
+		<label>Building Size</label>
+		<description>The building's size, used by the weather-compensation algorithm.</description>
+		<state>
+			<options>
+				<option value="small">Small</option>
+				<option value="medium">Medium</option>
+				<option value="large">Large</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="wdr-temperature-influence" advanced="true">
+		<item-type>String</item-type>
+		<label>Weather Influence</label>
+		<description>How strongly room temperature influences the weather-compensated heating curve.</description>
+		<tags>
+			<tag>Control</tag>
+			<tag>Mode</tag>
+		</tags>
+		<state>
+			<options>
+				<option value="off">Off</option>
+				<option value="less">Less</option>
+				<option value="average">Average</option>
+				<option value="more">More</option>
+				<option value="room-regulation">Room Regulation</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="climate-zone" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Climate Zone</label>
+		<description>Reference outdoor design temperature for the local climate, used by the weather-compensation algorithm.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="max-preheat" advanced="true">
+		<item-type unitHint="min">Number:Time</item-type>
+		<label>Max Preheat</label>
+		<description>Maximum time the boiler may pre-heat before a scheduled temperature change. Only 1440 (Automatic) is
+			device-confirmed; other values are unverified.</description>
+		<category>Time</category>
+		<state pattern="%d %unit%" min="0" max="1440"/>
+	</channel-type>
+
+	<channel-type id="legionella-protection" advanced="true">
+		<item-type>Switch</item-type>
+		<label>Legionella Protection</label>
+		<description>Periodically heats the hot water tank above a threshold to kill legionella bacteria.</description>
+		<state/>
+	</channel-type>
+
+	<channel-type id="legionella-protection-day" advanced="true">
+		<item-type>String</item-type>
+		<label>Legionella Day</label>
+		<description>The weekday legionella protection runs on.</description>
+		<state>
+			<options>
+				<option value="monday">Monday</option>
+				<option value="tuesday">Tuesday</option>
+				<option value="wednesday">Wednesday</option>
+				<option value="thursday">Thursday</option>
+				<option value="friday">Friday</option>
+				<option value="saturday">Saturday</option>
+				<option value="sunday">Sunday</option>
+			</options>
+		</state>
+	</channel-type>
+
+	<channel-type id="legionella-protection-time" advanced="true">
+		<item-type unitHint="min">Number:Time</item-type>
+		<label>Legionella Time</label>
+		<description>Time of day, in minutes since midnight, legionella protection starts at.</description>
+		<category>Time</category>
+		<state pattern="%d %unit%" min="0" max="1439"/>
+	</channel-type>
+
+	<channel-type id="display-brightness" advanced="true">
+		<item-type>Number:Dimensionless</item-type>
+		<label>Display Brightness</label>
+		<description>The thermostat's display brightness.</description>
+		<state pattern="%d %unit%" min="0" max="100"/>
+	</channel-type>
+
+	<channel-type id="time-zone" advanced="true">
+		<item-type>String</item-type>
+		<label>Time Zone</label>
+		<description>The thermostat's configured time zone. Only "berlin" is device-confirmed; any other value reads as
+			"unknown".</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="language" advanced="true">
+		<item-type>Number</item-type>
+		<label>Display Language</label>
+		<description>The thermostat's display language, as a device-defined integer not mapped to a locale by this binding.</description>
 		<state readOnly="true"/>
 	</channel-type>
 

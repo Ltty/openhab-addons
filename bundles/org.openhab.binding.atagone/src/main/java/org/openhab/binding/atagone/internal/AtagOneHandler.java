@@ -561,6 +561,191 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
+            case CHANNEL_FROST_PROTECTION:
+                if (command instanceof StringType s) {
+                    Integer mode = FROST_PROTECTION_BY_NAME.get(s.toString().toLowerCase());
+                    if (mode == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.frost_prot_enabled = mode;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_FROST_PROTECTION_TEMPERATURE_ROOM:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+                    if (celsius == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.frost_prot_temp_room = celsius.doubleValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_FROST_PROTECTION_TEMPERATURE_OUTSIDE:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+                    if (celsius == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.frost_prot_temp_outs = celsius.doubleValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_SUMMER_ECO_MODE:
+                if (command instanceof OnOffType onOff) {
+                    if (!fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.summer_eco_mode = onOff == OnOffType.ON ? 1 : 0;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_SUMMER_ECO_TEMPERATURE:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+                    if (celsius == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.summer_eco_temp = celsius.doubleValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_HEATING_TYPE:
+                if (command instanceof StringType s) {
+                    Integer type = HEATING_TYPE_BY_NAME.get(s.toString().toLowerCase());
+                    if (type == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.ch_heating_type = type;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_ISOLATION:
+                if (command instanceof StringType s) {
+                    Integer isolation = ISOLATION_BY_NAME.get(s.toString().toLowerCase());
+                    if (isolation == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.ch_isolation = isolation;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_BUILDING_SIZE:
+                if (command instanceof StringType s) {
+                    Integer size = BUILDING_SIZE_BY_NAME.get(s.toString().toLowerCase());
+                    if (size == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.ch_building_size = size;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_WDR_TEMPERATURE_INFLUENCE:
+                if (command instanceof StringType s) {
+                    Integer influence = WDR_TEMPERATURE_INFLUENCE_BY_NAME.get(s.toString().toLowerCase());
+                    if (influence == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.wdr_temps_influence = influence;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_CLIMATE_ZONE:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+                    if (celsius == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.climate_zone = celsius.doubleValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_MAX_PREHEAT:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> minutes = qt.toUnit(Units.MINUTE);
+                    if (minutes == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.max_preheat = minutes.intValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_LEGIONELLA_PROTECTION:
+                if (command instanceof OnOffType onOff) {
+                    if (!fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.dhw_legion_enabled = onOff == OnOffType.ON ? 1 : 0;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_LEGIONELLA_PROTECTION_DAY:
+                if (command instanceof StringType s) {
+                    Integer day = WEEKDAY_BY_NAME.get(s.toString().toLowerCase());
+                    if (day == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.dhw_legion_day = day;
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_LEGIONELLA_PROTECTION_TIME:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> minutes = qt.toUnit(Units.MINUTE);
+                    if (minutes == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.dhw_legion_time = minutes.intValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_VACATION_DURATION_DEFAULT:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> seconds = qt.toUnit(Units.SECOND);
+                    if (seconds == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.ch_mode_vacation = seconds.longValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_EXTEND_DURATION_DEFAULT:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> seconds = qt.toUnit(Units.SECOND);
+                    if (seconds == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.ch_mode_extend = seconds.longValue();
+                    return true;
+                }
+                return false;
+
+            case CHANNEL_DISPLAY_BRIGHTNESS:
+                if (command instanceof QuantityType<?> qt) {
+                    QuantityType<?> percent = qt.toUnit(Units.PERCENT);
+                    if (percent == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.disp_brightness = percent.intValue();
+                    return true;
+                }
+                return false;
+
             default:
                 return false;
         }
@@ -1008,6 +1193,36 @@ public class AtagOneHandler extends BaseThingHandler {
             updateIfChanged(CHANNEL_EXTEND_REMAINING, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, UnDefType.UNDEF);
         }
+
+        // Settings (Phase F)
+        DeviceConfigDTO config = r.configuration;
+        updateIfChanged(CHANNEL_FROST_PROTECTION,
+                new StringType(FROST_PROTECTION_NAMES.getOrDefault(config.frost_prot_enabled, "unknown")));
+        updateIfChanged(CHANNEL_FROST_PROTECTION_TEMPERATURE_ROOM,
+                new QuantityType<>(config.frost_prot_temp_room, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_FROST_PROTECTION_TEMPERATURE_OUTSIDE,
+                new QuantityType<>(config.frost_prot_temp_outs, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_SUMMER_ECO_MODE, OnOffType.from(config.summer_eco_mode == 1));
+        updateIfChanged(CHANNEL_SUMMER_ECO_TEMPERATURE, new QuantityType<>(config.summer_eco_temp, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_HEATING_TYPE,
+                new StringType(HEATING_TYPE_NAMES.getOrDefault(config.ch_heating_type, "unknown")));
+        updateIfChanged(CHANNEL_ISOLATION,
+                new StringType(ISOLATION_NAMES.getOrDefault(config.ch_isolation, "unknown")));
+        updateIfChanged(CHANNEL_BUILDING_SIZE,
+                new StringType(BUILDING_SIZE_NAMES.getOrDefault(config.ch_building_size, "unknown")));
+        updateIfChanged(CHANNEL_WDR_TEMPERATURE_INFLUENCE,
+                new StringType(WDR_TEMPERATURE_INFLUENCE_NAMES.getOrDefault(config.wdr_temps_influence, "unknown")));
+        updateIfChanged(CHANNEL_CLIMATE_ZONE, new QuantityType<>(config.climate_zone, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_MAX_PREHEAT, new QuantityType<>(config.max_preheat, Units.MINUTE));
+        updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION, OnOffType.from(config.dhw_legion_enabled == 1));
+        updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_DAY,
+                new StringType(WEEKDAY_NAMES.getOrDefault(config.dhw_legion_day, "unknown")));
+        updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_TIME, new QuantityType<>(config.dhw_legion_time, Units.MINUTE));
+        updateIfChanged(CHANNEL_VACATION_DURATION_DEFAULT, new QuantityType<>(config.ch_mode_vacation, Units.SECOND));
+        updateIfChanged(CHANNEL_EXTEND_DURATION_DEFAULT, new QuantityType<>(config.ch_mode_extend, Units.SECOND));
+        updateIfChanged(CHANNEL_DISPLAY_BRIGHTNESS, new QuantityType<>(config.disp_brightness, Units.PERCENT));
+        updateIfChanged(CHANNEL_TIME_ZONE, new StringType(TIME_ZONE_NAMES.getOrDefault(config.time_zone, "unknown")));
+        updateIfChanged(CHANNEL_LANGUAGE, new DecimalType(config.language));
     }
 
     private void updateIfChanged(String channelId, State state) {

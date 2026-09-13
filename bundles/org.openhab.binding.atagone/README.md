@@ -87,6 +87,8 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `control#vacation-end` | `DateTime` | R | Vacation period end (advanced) |
 | `control#extend-duration` | `Number:Time` | RW | **Value-setter only** — writing it does not activate extend mode. This is **additional** time on top of whatever's left until the device's next programmed schedule change, not an absolute session length. Persists across cancel (unlike the other two duration channels). See `preset-mode-duration` for the actual remaining-time countdown |
 | `control#fireplace-duration` | `Number:Time` | RW | Fireplace mode duration in hours — **value-setter only**, writing it does not activate fireplace mode. Reverts to the factory default (1 h) on cancel |
+| `control#vacation-duration-default` | `Number:Time` | RW | Stored default vacation duration used when holiday mode starts with no explicit duration (advanced) |
+| `control#extend-duration-default` | `Number:Time` | RW | Stored default extend duration used when extend mode starts with no explicit duration (advanced) |
 
 ### Central Heating (`heating#`)
 
@@ -107,6 +109,17 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
 | `heating#schedule-base-temperature` | `Number:Temperature` | RW | Central heating schedule's fallback temperature (advanced) |
+| `heating#frost-protection` | `String` | RW | Which sensor(s) frost protection uses: `off`, `outdoor`, `indoor`, `both` (advanced) |
+| `heating#frost-protection-temperature-room` | `Number:Temperature` | RW | Indoor threshold below which frost protection activates (advanced) |
+| `heating#frost-protection-temperature-outside` | `Number:Temperature` | RW | Outdoor threshold below which frost protection activates (advanced) |
+| `heating#summer-eco-mode` | `Switch` | RW | Reduces heating activity once the outside temperature is warm enough (advanced) |
+| `heating#summer-eco-temperature` | `Number:Temperature` | RW | Outside temperature above which summer eco mode activates (advanced) |
+| `heating#heating-type` | `String` | RW | Installed heating system type, used by the weather-compensation algorithm (advanced) |
+| `heating#isolation` | `String` | RW | Building insulation quality, used by the weather-compensation algorithm (advanced) |
+| `heating#building-size` | `String` | RW | Building size, used by the weather-compensation algorithm (advanced) |
+| `heating#wdr-temperature-influence` | `String` | RW | How strongly room temperature influences the weather-compensated heating curve (advanced) |
+| `heating#climate-zone` | `Number:Temperature` | RW | Reference outdoor design temperature for the local climate (advanced) |
+| `heating#max-preheat` | `Number:Time` | RW | Maximum pre-heat time before a scheduled temperature change (advanced) |
 
 ### Hot Water (`hotwater#`)
 
@@ -115,6 +128,20 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `hotwater#target-temperature` | `Number:Temperature` | RW | Hot Water Target Temperature — reflects the active schedule period; writing it changes the schedule's fallback temperature |
 | `hotwater#temperature` | `Number:Temperature` | R | Hot Water Temperature |
 | `hotwater#schedule-base-temperature` | `Number:Temperature` | R | Hot water schedule's fallback temperature (advanced) |
+| `hotwater#legionella-protection` | `Switch` | RW | Periodically heats the tank above a threshold to kill legionella bacteria (advanced) |
+| `hotwater#legionella-protection-day` | `String` | RW | Weekday legionella protection runs on (advanced) |
+| `hotwater#legionella-protection-time` | `Number:Time` | RW | Time of day legionella protection starts at (advanced) |
+
+### Device (`device#`)
+
+| Channel ID | Type | RW | Description |
+|------------|------|----|-------------|
+| `device#display-brightness` | `Number:Dimensionless` | RW | Thermostat display brightness (advanced) |
+| `device#time-zone` | `String` | R | Configured time zone. Only `berlin` is device-confirmed; any other value reads as `unknown` (advanced) |
+| `device#language` | `Number` | R | Display language, as a device-defined integer not mapped to a locale by this binding (advanced) |
+
+Further advanced diagnostic channels in the Device group (WiFi, power supply, controller health) are
+also available (visible when **Show advanced** is enabled in the UI).
 
 ### Alerts (`alerts#`)
 
@@ -122,9 +149,6 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 |------------|------|----|-------------|
 | `alerts#device-errors` | `String` | R | Active device error codes |
 | `alerts#boiler-errors` | `String` | R | Active boiler error codes |
-
-Device (`device#`) and further advanced diagnostic channels in the Operating Mode/Central Heating/Hot
-Water groups are also available (visible when **Show advanced** is enabled in the UI).
 
 ## Preset modes
 

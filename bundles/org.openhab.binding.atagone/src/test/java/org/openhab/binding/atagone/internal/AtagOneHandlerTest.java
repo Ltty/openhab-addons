@@ -37,6 +37,7 @@ import org.openhab.binding.atagone.internal.dto.DeviceConfigDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
 import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
+import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.unit.SIUnits;
@@ -660,5 +661,248 @@ class AtagOneHandlerTest {
         QuantityType<?> asSeconds = ((QuantityType<?>) vacationDuration).toUnit(Units.SECOND);
         assertNotNull(asSeconds);
         assertEquals(5 * 86400L, asSeconds.longValue());
+    }
+
+    @Test
+    void settingsChannelWriteRejectedWithoutPriorPoll() {
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("indoor"), control,
+                configUpdate);
+
+        assertFalse(accepted);
+    }
+
+    @Test
+    void frostProtectionWriteBundlesFullConfiguration() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("indoor"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(2, configUpdate.frost_prot_enabled);
+        assertEquals(5, configUpdate.ch_heating_type);
+    }
+
+    @Test
+    void frostProtectionWriteRejectsUnknownValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("nonsense"), control,
+                configUpdate);
+
+        assertFalse(accepted);
+    }
+
+    @Test
+    void frostProtectionTemperatureRoomWriteConvertsToCelsius() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION_TEMPERATURE_ROOM,
+                new QuantityType<>(6.0, SIUnits.CELSIUS), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(6.0, Objects.requireNonNull(configUpdate.frost_prot_temp_room), 0.001);
+    }
+
+    @Test
+    void frostProtectionTemperatureOutsideWriteConvertsToCelsius() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION_TEMPERATURE_OUTSIDE,
+                new QuantityType<>(-2.0, SIUnits.CELSIUS), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(-2.0, Objects.requireNonNull(configUpdate.frost_prot_temp_outs), 0.001);
+    }
+
+    @Test
+    void summerEcoModeWriteSetsIntegerFlag() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_SUMMER_ECO_MODE, OnOffType.ON, control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(1, configUpdate.summer_eco_mode);
+    }
+
+    @Test
+    void summerEcoTemperatureWriteConvertsToCelsius() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_SUMMER_ECO_TEMPERATURE,
+                new QuantityType<>(20.0, SIUnits.CELSIUS), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(20.0, Objects.requireNonNull(configUpdate.summer_eco_temp), 0.001);
+    }
+
+    @Test
+    void heatingTypeWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_HEATING_TYPE, new StringType("radiator"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(3, configUpdate.ch_heating_type);
+    }
+
+    @Test
+    void isolationWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_ISOLATION, new StringType("good"), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(3, configUpdate.ch_isolation);
+    }
+
+    @Test
+    void buildingSizeWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_BUILDING_SIZE, new StringType("large"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(3, configUpdate.ch_building_size);
+    }
+
+    @Test
+    void wdrTemperatureInfluenceWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_WDR_TEMPERATURE_INFLUENCE,
+                new StringType("room-regulation"), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(4, configUpdate.wdr_temps_influence);
+    }
+
+    @Test
+    void climateZoneWriteConvertsToCelsius() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_CLIMATE_ZONE, new QuantityType<>(-12.5, SIUnits.CELSIUS),
+                control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(-12.5, Objects.requireNonNull(configUpdate.climate_zone), 0.001);
+    }
+
+    @Test
+    void maxPreheatWriteConvertsToMinutes() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_MAX_PREHEAT, new QuantityType<>(30, Units.MINUTE),
+                control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(30, configUpdate.max_preheat);
+    }
+
+    @Test
+    void legionellaProtectionWriteSetsIntegerFlag() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION, OnOffType.OFF, control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(0, configUpdate.dhw_legion_enabled);
+    }
+
+    @Test
+    void legionellaProtectionDayWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_DAY, new StringType("wednesday"),
+                control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(3, configUpdate.dhw_legion_day);
+    }
+
+    @Test
+    void legionellaProtectionTimeWriteConvertsToMinutes() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME,
+                new QuantityType<>(390, Units.MINUTE), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(390, configUpdate.dhw_legion_time);
+    }
+
+    @Test
+    void vacationDurationDefaultWriteConvertsToSeconds() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_VACATION_DURATION_DEFAULT,
+                new QuantityType<>(10, Units.DAY), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(10 * 86400L, configUpdate.ch_mode_vacation);
+    }
+
+    @Test
+    void extendDurationDefaultWriteConvertsToSeconds() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_EXTEND_DURATION_DEFAULT,
+                new QuantityType<>(3, Units.HOUR), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(3 * 3600L, configUpdate.ch_mode_extend);
+    }
+
+    @Test
+    void displayBrightnessWriteConvertsToPercent() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_DISPLAY_BRIGHTNESS, new QuantityType<>(75, Units.PERCENT),
+                control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(75, configUpdate.disp_brightness);
     }
 }

@@ -90,18 +90,26 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE = "heating#schedule-base-temperature";
     public static final String CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE = "hotwater#schedule-base-temperature";
 
-    /*
-     * Advanced writable device-configuration channels — declared but not yet wired to any
-     * channel-type in thing-types.xml or any read/write logic in the handler (planned for a later
-     * phase). Grouped by subsystem, not under a dedicated settings group — see the channel-group
-     * placement rule in thing-types.xml's channel-groups comment, and DEVELOPERS.md's gap analysis
-     * for the full list of planned fields per group.
-     */
+    // Settings channels (Phase F) — advanced="true", set-once configuration, not everyday channels.
     public static final String CHANNEL_FROST_PROTECTION = "heating#frost-protection";
-    public static final String CHANNEL_FROST_PROTECTION_TEMPERATURE = "heating#frost-protection-temperature";
-    public static final String CHANNEL_LEGIONELLA_PROTECTION = "hotwater#legionella-protection";
+    public static final String CHANNEL_FROST_PROTECTION_TEMPERATURE_ROOM = "heating#frost-protection-temperature-room";
+    public static final String CHANNEL_FROST_PROTECTION_TEMPERATURE_OUTSIDE = "heating#frost-protection-temperature-outside";
     public static final String CHANNEL_SUMMER_ECO_MODE = "heating#summer-eco-mode";
     public static final String CHANNEL_SUMMER_ECO_TEMPERATURE = "heating#summer-eco-temperature";
+    public static final String CHANNEL_HEATING_TYPE = "heating#heating-type";
+    public static final String CHANNEL_ISOLATION = "heating#isolation";
+    public static final String CHANNEL_BUILDING_SIZE = "heating#building-size";
+    public static final String CHANNEL_WDR_TEMPERATURE_INFLUENCE = "heating#wdr-temperature-influence";
+    public static final String CHANNEL_CLIMATE_ZONE = "heating#climate-zone";
+    public static final String CHANNEL_MAX_PREHEAT = "heating#max-preheat";
+    public static final String CHANNEL_LEGIONELLA_PROTECTION = "hotwater#legionella-protection";
+    public static final String CHANNEL_LEGIONELLA_PROTECTION_DAY = "hotwater#legionella-protection-day";
+    public static final String CHANNEL_LEGIONELLA_PROTECTION_TIME = "hotwater#legionella-protection-time";
+    public static final String CHANNEL_VACATION_DURATION_DEFAULT = "control#vacation-duration-default";
+    public static final String CHANNEL_EXTEND_DURATION_DEFAULT = "control#extend-duration-default";
+    public static final String CHANNEL_DISPLAY_BRIGHTNESS = "device#display-brightness";
+    public static final String CHANNEL_TIME_ZONE = "device#time-zone";
+    public static final String CHANNEL_LANGUAGE = "device#language";
 
     // Thing property key for the persisted client identifier
     public static final String PROPERTY_CLIENT_ID = "clientId";
@@ -145,4 +153,37 @@ public class AtagOneBindingConstants {
             Map.entry(5, "windy"), Map.entry(6, "fog"), Map.entry(7, "cloudy"), Map.entry(8, "partly-sunny"),
             Map.entry(9, "partly-cloudy"), Map.entry(10, "pouring"), Map.entry(11, "lightning"),
             Map.entry(12, "hurricane"), Map.entry(13, "unknown"));
+
+    // ── Settings-channel enum constants (Phase F) ───────────────────────────────
+
+    public static final Map<Integer, String> FROST_PROTECTION_NAMES = Map.of(0, "off", 1, "outdoor", 2, "indoor", 3,
+            "both");
+    public static final Map<String, Integer> FROST_PROTECTION_BY_NAME = Map.of("off", 0, "outdoor", 1, "indoor", 2,
+            "both", 3);
+
+    public static final Map<Integer, String> HEATING_TYPE_NAMES = Map.of(1, "air-heating", 2, "convector", 3,
+            "radiator", 4, "radiator-underfloor", 5, "underfloor", 6, "underfloor-radiator");
+    public static final Map<String, Integer> HEATING_TYPE_BY_NAME = Map.of("air-heating", 1, "convector", 2, "radiator",
+            3, "radiator-underfloor", 4, "underfloor", 5, "underfloor-radiator", 6);
+
+    public static final Map<Integer, String> ISOLATION_NAMES = Map.of(1, "poor", 2, "average", 3, "good");
+    public static final Map<String, Integer> ISOLATION_BY_NAME = Map.of("poor", 1, "average", 2, "good", 3);
+
+    public static final Map<Integer, String> BUILDING_SIZE_NAMES = Map.of(1, "small", 2, "medium", 3, "large");
+    public static final Map<String, Integer> BUILDING_SIZE_BY_NAME = Map.of("small", 1, "medium", 2, "large", 3);
+
+    public static final Map<Integer, String> WDR_TEMPERATURE_INFLUENCE_NAMES = Map.of(0, "off", 1, "less", 2, "average",
+            3, "more", 4, "room-regulation");
+    public static final Map<String, Integer> WDR_TEMPERATURE_INFLUENCE_BY_NAME = Map.of("off", 0, "less", 1, "average",
+            2, "more", 3, "room-regulation", 4);
+
+    public static final Map<Integer, String> WEEKDAY_NAMES = Map.ofEntries(Map.entry(1, "monday"),
+            Map.entry(2, "tuesday"), Map.entry(3, "wednesday"), Map.entry(4, "thursday"), Map.entry(5, "friday"),
+            Map.entry(6, "saturday"), Map.entry(7, "sunday"));
+    public static final Map<String, Integer> WEEKDAY_BY_NAME = Map.ofEntries(Map.entry("monday", 1),
+            Map.entry("tuesday", 2), Map.entry("wednesday", 3), Map.entry("thursday", 4), Map.entry("friday", 5),
+            Map.entry("saturday", 6), Map.entry("sunday", 7));
+
+    /** Only {@code 1=Berlin} is device-confirmed; every other value is unmapped, not fabricated. */
+    public static final Map<Integer, String> TIME_ZONE_NAMES = Map.of(1, "berlin");
 }
