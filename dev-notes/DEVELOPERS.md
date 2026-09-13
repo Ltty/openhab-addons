@@ -268,7 +268,7 @@ correctly, documented in full under Write semantics below.
 |---|---|---|---|---|---|
 | `ch_status` | int (bitmask) | — | R | — | UNKNOWN |
 | `ch_control_mode` | int enum | — | **W** (bundle only — see below) | `heating#control-mode` | VERIFIED `0=thermostat, 1=weather-dependent` (values renamed from `room`/`weather`, Phase G, to match the app/manual) |
-| `ch_mode` | int enum | — | **W** | `control#preset-mode` | VERIFIED `1=manual(R), 2=auto, 3=holiday, 4=extend, 5=fireplace` |
+| `ch_mode` | int enum | — | **W** | `control#preset-mode` | VERIFIED `1=manual, 2=auto, 3=holiday, 4=extend, 5=fireplace` — `manual` writable as of this session, see the Open questions resolution below |
 | `ch_mode_duration` | long | s | R for its value; **must be written as `0` to cancel any timed preset**, and **must be present (any value) to activate fireplace specifically** | `control#preset-mode-duration`, also `control#extend-remaining`/`control#fireplace-remaining` (mode-gated, same field — see Double-mapping inventory) | VERIFIED, mode-dependent meaning — see below |
 | `ch_mode_temp` | double | °C | **W** | `heating#target-temperature`, `control#vacation-temperature` (mode-dependent — see Double-mapping inventory) | VERIFIED |
 | `dhw_temp_setp` | double | °C | R | `hotwater#target-temperature`, read-only (Phase I: previously writable via a redirect to `schedules.dhw_schedule.base_temp`, which duplicated `hotwater#schedule-base-temperature`'s field — the write moved there instead, see the DHW read/write asymmetry note below) | Tracks whichever `schedules.dhw_schedule` entry/fallback is currently active |
@@ -290,9 +290,9 @@ correctly, documented in full under Write semantics below.
 | `boiler_id` | string | — | R | `serialNumber` Thing property (Phase H) | VERIFIED |
 | `boiler_det_type` | int | — | R | `boilerDetectType` Thing property (Phase H) | UNKNOWN meaning — exposed as the raw integer, no model name invented |
 | `language` | int enum | — | INFERRED W (app) | `device#language` (Phase F) | VERIFIED `0=English, 1=Dutch, 2=French, 3=Italian, 4=German` — device reads `4`, display confirmed set to German |
-| `pressure_unit` | int enum | — | INFERRED W (app) | — | INFERRED `0=bar, 1=psi` from javadoc; reads 0, alternate branch untested. No exposure decision recorded — see Backlog |
-| `temp_unit` | int enum | — | INFERRED W (app) | — | INFERRED `0=°C, 1=°F`; reads 0, alternate branch untested. No exposure decision recorded — see Backlog |
-| `time_format` | int enum | — | INFERRED W (app) | — | INFERRED `0=24h, 1=12h`; reads 1. No exposure decision recorded — see Backlog |
+| `pressure_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=bar, 1=psi` from javadoc; reads 0, alternate branch untested |
+| `temp_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=°C, 1=°F`; reads 0, alternate branch untested |
+| `time_format` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=24h, 1=12h`; reads 1 |
 | `time_zone` | int enum | — | **W** (cloud) | `device#time-zone`, read-only (Phase F) | PARTIAL — `1=Berlin` VERIFIED (cloud form + device agree); other 9 values INFERRED from dropdown order only |
 | `summer_eco_mode` | int (bool-ish) | — | **W** (cloud) | `heating#summer-eco-mode` (Phase F) | VERIFIED shape; `1=on` INFERRED |
 | `summer_eco_temp` | double | °C | **W** (cloud) | `heating#summer-eco-temperature` (Phase F) | VERIFIED |
@@ -433,18 +433,17 @@ inferred. This supersedes the pre-test version of this table entirely.
 
 | Mode | `ch_mode` | Fields required together to activate | Duration source when not explicit |
 |---|---|---|---|
-| Manual | 1 | **Not writable** by this binding — see the note below | — |
+| Manual | 1 | `ch_mode` alone is sufficient; `ch_mode_temp` optional (reuses the current target temperature if omitted) | — |
 | Auto | 2 | `ch_mode` alone is sufficient | — |
 | Holiday/vacation | 3 | `ch_mode` + `configuration.start_vacation` **must be in the same write** — confirmed to never activate without `start_vacation`, regardless of whether `vacation_duration` is preset (three independent failed attempts without it) | `control.vacation_duration` if non-zero, else `configuration.ch_mode_vacation` (7 days) — the device never applies this fallback itself, the binding does |
 | Extend | 4 | `ch_mode` alone is sufficient | `control.extend_duration` — **persists across cancel**, a genuinely stable stored default |
 | Fireplace | 5 | `ch_mode` alone is sufficient; `ch_mode_duration` **must additionally be present** on this mode specifically — its absence causes a confirmed ~4 minute boiler API restart | `control.fireplace_duration` — **reverts to the factory default (3600) on every cancel**, not stable the way extend's is |
 
-**A manual-mode contradiction, not yet reconciled.** The same test report found `{"ch_mode":1}`
-applied cleanly with no restart, directly contradicting the long-standing basis for this binding's
-hard rejection of manual writes. That claim's origin isn't traceable in this session, the
-contradicting evidence is a single test, and the current rejection is a safety behavior, not
-established as a bug — so the binding's code has **not** been changed to allow it. Tracked as an
-open question below; do not act on the new evidence without dedicated verification first.
+**Manual-mode resolved (2026-09-13).** The same test report found `{"ch_mode":1}` applied cleanly
+with no restart; a second, deliberate live test this session (auto→manual→auto→manual, including a
+delayed 60s stability recheck) confirmed the same result independently. The original basis for the
+binding's hard rejection was never traceable — two clean live tests now outweigh it. `preset-mode=manual`
+is writable as of this session; see the Open questions resolution below for the full test record.
 
 `start_vacation` also supports genuine **future-scheduled** activation — confirmed by directly
 observing the physical thermostat switch into vacation mode at the scheduled time, from a clean
@@ -758,8 +757,10 @@ setpoint bounds.
   above
 - Counters reading 0 with undetermined hardware support (`boiler_capacity`, `lmuc_burner_hours`,
   `lmuc_dhw_hours`, `lmuc_burner_starts`)
-- `pressure_unit`, `temp_unit`, `time_format` — INFERRED-writable (app), still no exposure decision;
-  low automation value, left for a future phase if ever requested
+- `pressure_unit`, `temp_unit`, `time_format` — **decision: leave unexposed** (2026-09-13). Near-zero
+  automation value (changing the thermostat's own display unit from openHAB), and adding three more
+  channels plus enum maps for it works against the channel-surface-size concern the PR reviewer
+  already raised. Revisit only if actually requested.
 
 **Channel-group placement rule (Phase 1 revisit, 2026-08-28):** group = domain/subsystem
 (`heating`/`hotwater`/`device`/`alerts`), with `control` as the one deliberate exception — it holds
@@ -846,10 +847,16 @@ Every item below needs a live retest before being treated as settled. None requi
 investigate — all are either read-only checks or reuse an already-proven write shape with one
 deliberately varied field.
 
-1. **Manual mode (`ch_mode:1`) applied cleanly with no restart** in one live test — directly
-   contradicts this binding's current hard rejection of manual writes. The rejection's original basis
-   isn't traceable in this session, and it's a safety behavior, not a confirmed bug — needs dedicated
-   verification before any code change; not touched by the current implementation.
+1. ~~Manual mode (`ch_mode:1`) applied cleanly with no restart~~ **CLOSED, VERIFIED 2026-09-13.**
+   Second independent confirmation, this time deliberate: cancelled the device's own live manual-mode
+   session (a real physical adjustment, 19.5°C) to auto, confirmed clean (`acc_status:2`, `resets`
+   unchanged), then wrote `ch_mode:1` + `ch_mode_temp:19.5` directly to return to manual. Applied
+   immediately, `resets` unchanged, and a delayed recheck 60s later showed no instability. The
+   rejection's original basis was never traceable in this project — two clean live tests now
+   outweigh an unsourced caution. **`preset-mode=manual` is writable as of this session**, composing
+   `ch_mode=1` plus whichever temperature `heating#target-temperature` last reported (see
+   `composeManualActivation()`), matching how the app behaves when switching to manual from another
+   mode.
 1. Why does `fireplace_duration` revert to its factory default specifically after the
    physical-confirmation cancel path — would it also revert after a hypothetically successful
    API-only cancel? Not isolated; API-only cancel for fireplace has never been observed to actually
@@ -884,6 +891,12 @@ deliberately varied field.
 1. What is `boiler_status` bit `0x200` (observed set in the 2026-08-27 snapshot, not covered by any
    currently-decoded bit)?
 1. What are the true units of `report.current` and `report.power_cons`?
+1. What do `control.ch_status` (reads `1`) and `control.dhw_status` (reads `53`) enumerate? Neither
+   is a simple boolean — `dhw_status=53` in particular suggests a bitmask or small state machine, not
+   an on/off flag. No cloud/app surface found for either. Distinct from `report.boiler_status` (the
+   field `heating#flame`/`heating#burner-target`/`heating#central-heating-active`/
+   `hotwater#hot-water-active` decode) — these two `control` fields have never been parsed or acted on
+   at all.
 1. What is the actual device-required minimum inter-request interval? Phase A live-verified 1000 ms
    (down from an earlier 2000 ms) with no regression in `OFFLINE`/`COMMUNICATION_ERROR` frequency, so
    1000 ms is confirmed *sufficient*, but not confirmed as the device's true floor. Findable
