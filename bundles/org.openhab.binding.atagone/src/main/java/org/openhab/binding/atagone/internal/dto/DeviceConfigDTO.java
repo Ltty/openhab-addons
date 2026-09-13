@@ -21,7 +21,6 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
  */
 @NonNullByDefault({})
 public class DeviceConfigDTO {
-    // ── Temperature setpoint limits ───────────────────────────────────────────
     /** Minimum CH setpoint (°C). */
     public double ch_min_set;
     /** Maximum CH setpoint (°C). */
@@ -33,7 +32,6 @@ public class DeviceConfigDTO {
     /** Maximum boiler temperature for CH (°C). */
     public double ch_temp_max;
 
-    // ── Vacation / mode defaults ──────────────────────────────────────────────
     /** CH temperature setpoint during vacation (°C). */
     public double ch_vacation_temp;
     /** Vacation period start (ATAG epoch: seconds since 2000-01-01 UTC). */
@@ -43,10 +41,9 @@ public class DeviceConfigDTO {
     /** Default extend mode duration (seconds). */
     public long ch_mode_extend;
 
-    // ── Frost / summer protection ─────────────────────────────────────────────
     /**
-     * Frost protection mode: 0=off, 1=outdoor sensor only, 2=indoor sensor only,
-     * 3=indoor + outdoor sensors.
+     * Frost protection mode: 0=off, 1=outside sensor only, 2=inside sensor only,
+     * 3=inside + outside sensors.
      */
     public int frost_prot_enabled;
     /** Frost protection outdoor temperature threshold (°C). */
@@ -58,7 +55,6 @@ public class DeviceConfigDTO {
     /** Summer eco mode activation temperature (°C). */
     public double summer_eco_temp;
 
-    // ── Legionella protection ────────────────────────────────────────────────
     /** Legionella protection enabled (1=on). */
     public int dhw_legion_enabled;
     /** Legionella cycle day of week (1=Monday … 7=Sunday). */
@@ -66,7 +62,6 @@ public class DeviceConfigDTO {
     /** Legionella cycle start time (minutes since midnight). */
     public int dhw_legion_time;
 
-    // ── Display / UI settings ────────────────────────────────────────────────
     /** Display brightness (0–100). */
     public int disp_brightness;
     /**
@@ -83,13 +78,11 @@ public class DeviceConfigDTO {
     /** Time zone offset (device-defined). */
     public int time_zone;
 
-    // ── Temperature calibration offsets ──────────────────────────────────────
     /** Room temperature offset calibration (°C). */
     public double room_temp_offs;
     /** Outside temperature offset calibration (°C). */
     public double outs_temp_offs;
 
-    // ── Weather-dependent regulation (WDR) ───────────────────────────────────
     /** WDR k-factor (also in report.details). */
     public double wd_k_factor;
     /** WDR exponent (also in report.details). */
@@ -98,13 +91,12 @@ public class DeviceConfigDTO {
     public double wd_temp_offs;
     /**
      * WDR room temperature influence:
-     * 0=off, 1=less, 2=average, 3=more, 4=room_regulation.
+     * 0=off, 1=less, 2=medium, 3=more, 4=room-control.
      */
     public int wdr_temps_influence;
     /** Climate zone (WDR parameter). */
     public double climate_zone;
 
-    // ── Boiler / installer configuration ─────────────────────────────────────
     /** Privacy mode (1=on — disables cloud reporting). */
     public int privacy_mode;
     /** Boiler identifier string. */
@@ -118,7 +110,6 @@ public class DeviceConfigDTO {
     /** Maximum pre-heat time (minutes). */
     public int max_preheat;
 
-    // ── Building characteristics ──────────────────────────────────────────────
     /**
      * Building size: 1=small, 2=medium, 3=large.
      * Used by WDR algorithm.
@@ -134,13 +125,11 @@ public class DeviceConfigDTO {
     /** Regulation mu parameter (also in report.details). */
     public double mu;
 
-    // ── Shower / comfort settings ─────────────────────────────────────────────
     /** Shower time mode (device-defined). */
     public int shower_time_mode;
     /** Comfort settings bitmask (device-defined). */
     public int comfort_settings;
 
-    // ── Service / cloud URLs (read-only, do not write) ───────────────────────
     /** Cloud report upload URL (read-only). */
     public String report_url = "";
     /**

@@ -22,18 +22,11 @@
 		<config-description-ref uri="thing-type:atagone:thermostat"/>
 	</thing-type>
 
-	<!-- ═══════════════════════════════════════════════════════════════════════
-		Channel groups
-
-		Grouped by domain (heating/hotwater/device/alerts), not by protocol block
-		(control vs. configuration JSON) — e.g. ch-control-mode lives in the
-		protocol's "control" block but is a heating strategy setting, so it's
-		grouped under heating, not control. "control" is the one deliberate
-		exception: it holds the operating-mode/preset concern, which is
-		cross-cutting and belongs to no single subsystem. The status-vs-config
-		axis (everyday vs. set-once) is carried by advanced="true" on the
-		channel-type, not by the group — see the channel-type definitions below.
-		═══════════════════════════════════════════════════════════════════════ -->
+	<!-- Groups are by domain (heating/hotwater/device/alerts), not by protocol block: e.g.
+		ch-control-mode lives in the protocol's "control" block but is a heating strategy setting, so
+		it's grouped under heating. "control" is the one deliberate exception, holding the
+		cross-cutting operating-mode/preset concern. Everyday-vs-set-once is carried by
+		advanced="true" on the channel-type, not by the group. -->
 
 	<channel-group-type id="control">
 		<label>Operating Mode</label>
@@ -140,10 +133,6 @@
 			<channel id="boiler-errors" typeId="boiler-errors"/>
 		</channels>
 	</channel-group-type>
-
-	<!-- ═══════════════════════════════════════════════════════════════════════
-		Everyday channel types
-		═══════════════════════════════════════════════════════════════════════ -->
 
 	<channel-type id="room-temperature">
 		<item-type>Number:Temperature</item-type>
@@ -491,10 +480,6 @@
 		<state readOnly="true"/>
 	</channel-type>
 
-	<!-- ═══════════════════════════════════════════════════════════════════════
-		Advanced / diagnostic channel types
-		═══════════════════════════════════════════════════════════════════════ -->
-
 	<channel-type id="shown-set-temperature" advanced="true">
 		<item-type>Number:Temperature</item-type>
 		<label>Displayed Setpoint</label>
@@ -619,12 +604,9 @@
 		<state readOnly="true"/>
 	</channel-type>
 
-	<!-- ═══════════════════════════════════════════════════════════════════════
-		Settings channels (Phase F) — set-once configuration, all advanced="true".
-		Writing any of these bundles all ~19 writable configuration fields at
-		their current value alongside the one being changed — see
-		AtagOneHandler.fillConfigBundle() and DEVELOPERS.md's write semantics.
-		═══════════════════════════════════════════════════════════════════════ -->
+	<!-- Below: set-once configuration channels, all advanced="true". Writing any one of them bundles
+		every writable configuration field at its current value alongside the one being changed —
+		the device rejects a configuration write that omits any of them. -->
 
 	<channel-type id="vacation-duration-default" advanced="true">
 		<item-type unitHint="d">Number:Time</item-type>
@@ -855,11 +837,6 @@
 		<description>The thermostat's display language, as a device-defined integer not mapped to a locale by this binding.</description>
 		<state readOnly="true"/>
 	</channel-type>
-
-	<!-- ═══════════════════════════════════════════════════════════════════════
-		Exposure reconciliation channels (Phase I) — values the portal shows
-		that the binding was missing.
-		═══════════════════════════════════════════════════════════════════════ -->
 
 	<channel-type id="delta-temperature" advanced="true">
 		<item-type>Number:Temperature</item-type>

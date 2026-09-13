@@ -129,8 +129,6 @@ public class AtagOneBindingConstants {
     public static final String PROPERTY_BOILER_DETECT_TYPE = "boilerDetectType";
     public static final String PROPERTY_INSTALLER_ID = "installerId";
 
-    // ── Protocol enum constants ───────────────────────────────────────────────
-
     public static final int CH_MODE_MANUAL = 1;
     public static final int CH_MODE_AUTO = 2;
     public static final int CH_MODE_HOLIDAY = 3;
@@ -168,8 +166,6 @@ public class AtagOneBindingConstants {
             Map.entry(5, "windy"), Map.entry(6, "fog"), Map.entry(7, "cloudy"), Map.entry(8, "partly-sunny"),
             Map.entry(9, "partly-cloudy"), Map.entry(10, "pouring"), Map.entry(11, "lightning"),
             Map.entry(12, "hurricane"), Map.entry(13, "unknown"));
-
-    // ── Settings-channel enum constants (Phase F) ───────────────────────────────
 
     public static final Map<Integer, String> FROST_PROTECTION_NAMES = Map.of(0, "off", 1, "outside", 2, "inside", 3,
             "both");

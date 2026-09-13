@@ -87,6 +87,7 @@ public class AtagOneHandler extends BaseThingHandler {
     public static final long SECONDS_PER_DAY = 86400L;
     /** Extend duration steps in 15-minute increments (manual: 15 min – 6 h), unlike the other two durations. */
     public static final long SECONDS_PER_15_MINUTES = 900L;
+    private static final long SECONDS_PER_MINUTE = 60L;
 
     private final Logger logger = LoggerFactory.getLogger(AtagOneHandler.class);
     private final HttpClient httpClient;
@@ -167,8 +168,6 @@ public class AtagOneHandler extends BaseThingHandler {
         return List.of(AtagOneActions.class);
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
-
     @Override
     public void initialize() {
         disposing = false;
@@ -199,8 +198,6 @@ public class AtagOneHandler extends BaseThingHandler {
             pairingJob = null;
         }
     }
-
-    // ── Command handling ──────────────────────────────────────────────────────
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
@@ -756,12 +753,10 @@ public class AtagOneHandler extends BaseThingHandler {
         }
     }
 
-    // ── Config-bundle composition ────────────────────────────────────────────────
-
     /**
      * Composes a {@code heating#control-mode} write. Bundles every writable configuration field at
-     * its current value alongside the one being changed ({@code control.ch_control_mode}) — see
-     * DEVELOPERS.md's write semantics for why the device rejects a lightly-bundled write.
+     * its current value alongside the one being changed ({@code control.ch_control_mode}) — the
+     * device rejects a configuration write that omits any of them.
      *
      * @return {@code true} if composed, {@code false} if no prior poll has captured the current
      *         configuration yet
@@ -801,8 +796,6 @@ public class AtagOneHandler extends BaseThingHandler {
         configDto.dhw_legion_time = config.dhw_legion_time;
         return true;
     }
-
-    // ── Mode-activation composition ─────────────────────────────────────────────
 
     /*
      * Shared by buildControlUpdate()'s preset-mode case (explicitDurationSeconds == null: fall back
@@ -963,8 +956,6 @@ public class AtagOneHandler extends BaseThingHandler {
         return durationSeconds >= unitSeconds && durationSeconds % unitSeconds == 0;
     }
 
-    // ── Connection / pairing ──────────────────────────────────────────────────
-
     private void connect(long myGeneration) {
         if (disposing || generation != myGeneration) {
             return;
@@ -1037,8 +1028,6 @@ public class AtagOneHandler extends BaseThingHandler {
         }
     }
 
-    // ── Polling ───────────────────────────────────────────────────────────────
-
     private void poll() {
         if (disposing) {
             return;
@@ -1078,8 +1067,6 @@ public class AtagOneHandler extends BaseThingHandler {
             pollJob = null;
         }
     }
-
-    // ── Channel updates ───────────────────────────────────────────────────────
 
     private void updateChannels(RetrieveReplyDTO r) {
         // Tracked unconditionally (not mode-gated) so it survives holiday mode ending — see the
@@ -1138,8 +1125,8 @@ public class AtagOneHandler extends BaseThingHandler {
         // voltage is reported in mV when > 1000, otherwise already in V (observed device inconsistency).
         double voltage = r.report.voltage > 1000 ? r.report.voltage / 1000.0 : r.report.voltage;
         updateIfChanged(CHANNEL_VOLTAGE, new QuantityType<>(voltage, Units.VOLT));
-        // report.current and report.power_cons are deliberately not exposed as channels — no way to
-        // verify their units or meaning against this device (see DEVELOPERS.md's field reference).
+        // report.current and report.power_cons are deliberately not exposed as channels — their
+        // units and meaning could not be verified against this device.
         updateIfChanged(CHANNEL_DHW_FLOW_RATE, new QuantityType<>(r.report.dhw_flow_rate, Units.LITRE_PER_MINUTE));
         updateIfChanged(CHANNEL_RESETS, new DecimalType(r.report.resets));
         updateIfChanged(CHANNEL_MEMORY_ALLOCATION, new DecimalType(r.report.memory_allocation));
@@ -1176,9 +1163,9 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_DHW_TARGET_TEMPERATURE, new QuantityType<>(r.control.dhw_temp_setp, SIUnits.CELSIUS));
         updateDhwTargetTemperatureBounds(r.configuration.dhw_min_set, r.configuration.dhw_max_set);
         // control.dhw_mode is deliberately not exposed as a channel — no source documents its value
-        // meanings and neither the app nor the cloud portal expose a setting for it (see DEVELOPERS.md).
+        // meanings and neither the app nor the cloud portal expose a setting for it.
         updateIfChanged(CHANNEL_EXTEND_DURATION,
-                new QuantityType<>(r.control.extend_duration / (double) SECONDS_PER_HOUR, Units.HOUR));
+                new QuantityType<>(r.control.extend_duration / (double) SECONDS_PER_MINUTE, Units.MINUTE));
         updateIfChanged(CHANNEL_FIREPLACE_DURATION,
                 new QuantityType<>(r.control.fireplace_duration / (double) SECONDS_PER_HOUR, Units.HOUR));
         /*
@@ -1257,8 +1244,10 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_DAY,
                 new StringType(WEEKDAY_NAMES.getOrDefault(config.dhw_legion_day, "unknown")));
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_TIME, new QuantityType<>(config.dhw_legion_time, Units.MINUTE));
-        updateIfChanged(CHANNEL_VACATION_DURATION_DEFAULT, new QuantityType<>(config.ch_mode_vacation, Units.SECOND));
-        updateIfChanged(CHANNEL_EXTEND_DURATION_DEFAULT, new QuantityType<>(config.ch_mode_extend, Units.SECOND));
+        updateIfChanged(CHANNEL_VACATION_DURATION_DEFAULT,
+                new QuantityType<>(config.ch_mode_vacation / (double) SECONDS_PER_DAY, Units.DAY));
+        updateIfChanged(CHANNEL_EXTEND_DURATION_DEFAULT,
+                new QuantityType<>(config.ch_mode_extend / (double) SECONDS_PER_MINUTE, Units.MINUTE));
         updateIfChanged(CHANNEL_DISPLAY_BRIGHTNESS, new QuantityType<>(config.disp_brightness, Units.PERCENT));
         updateIfChanged(CHANNEL_TIME_ZONE, new StringType(TIME_ZONE_NAMES.getOrDefault(config.time_zone, "unknown")));
         updateIfChanged(CHANNEL_LANGUAGE, new DecimalType(config.language));
@@ -1270,8 +1259,6 @@ public class AtagOneHandler extends BaseThingHandler {
             updateState(channelId, state);
         }
     }
-
-    // ── Status helpers ────────────────────────────────────────────────────────
 
     private void goOnline() {
         if (getThing().getStatus() != ThingStatus.ONLINE) {
@@ -1288,8 +1275,6 @@ public class AtagOneHandler extends BaseThingHandler {
         }
         updateStatus(ThingStatus.OFFLINE, detail, reason);
     }
-
-    // ── Next schedule entry ──────────────────────────────────────────────────
 
     /**
      * The next scheduled CH entry start, mirroring the portal's automatic-mode "next time target".
@@ -1324,8 +1309,6 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_NEXT_SCHEDULE_TIME, UnDefType.UNDEF);
         updateIfChanged(CHANNEL_NEXT_SCHEDULE_TEMPERATURE, UnDefType.UNDEF);
     }
-
-    // ── Device properties ────────────────────────────────────────────────────
 
     /**
      * Static identity, not channels — matches the portal's Account → Devices screen. Also populates
@@ -1373,8 +1356,6 @@ public class AtagOneHandler extends BaseThingHandler {
         }
         return downloadUrl.substring(lastSlash + 1);
     }
-
-    // ── Client ID lifecycle ───────────────────────────────────────────────────
 
     private String resolveClientId() {
         if (!config.clientId.isBlank()) {

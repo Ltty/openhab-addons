@@ -254,8 +254,7 @@ public class AtagOneApiClient {
     }
 
     /**
-     * Writes the CH schedule's fallback temperature. See {@link ScheduleDTO} and DEVELOPERS.md's
-     * schedules section for the required shape.
+     * Writes the CH schedule's fallback temperature. See {@link ScheduleDTO} for the required shape.
      *
      * @param chSchedule the complete schedule to send
      * @throws AtagOneCommunicationException on transport or protocol failure
@@ -265,8 +264,7 @@ public class AtagOneApiClient {
     }
 
     /**
-     * Writes the DHW schedule's fallback temperature. See {@link ScheduleDTO} and DEVELOPERS.md's
-     * schedules section for the required shape.
+     * Writes the DHW schedule's fallback temperature. See {@link ScheduleDTO} for the required shape.
      *
      * @param dhwSchedule the complete schedule to send
      * @throws AtagOneCommunicationException on transport or protocol failure

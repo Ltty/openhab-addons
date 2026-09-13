@@ -70,8 +70,6 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
         super(SUPPORTED_THING_TYPES, MANUAL_DISCOVERY_TIME_S, true);
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────────
-
     @Override
     protected void startScan() {
         scheduler.execute(() -> listenUntilDeadline(System.currentTimeMillis() + MANUAL_DISCOVERY_TIME_S * 1000L));
@@ -96,8 +94,6 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
         }
         scanJob = null;
     }
-
-    // ── Discovery ─────────────────────────────────────────────────────────────
 
     private void listenOnce() {
         byte[] buf = new byte[64];

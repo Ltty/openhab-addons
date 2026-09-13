@@ -846,6 +846,8 @@ class AtagOneHandlerTest {
         reply.control.vacation_duration = 3 * 86400L;
         reply.control.extend_duration = 2 * 3600L;
         reply.control.fireplace_duration = 5 * 3600L;
+        reply.configuration.ch_mode_vacation = 7 * 86400L;
+        reply.configuration.ch_mode_extend = 90 * 60L;
 
         invokeUpdateChannels(reply);
 
@@ -853,11 +855,17 @@ class AtagOneHandlerTest {
         assertEquals(Units.DAY, vacation.getUnit());
         assertEquals(3.0, vacation.doubleValue(), 0.001);
         QuantityType<?> extend = (QuantityType<?>) readState(CHANNEL_EXTEND_DURATION);
-        assertEquals(Units.HOUR, extend.getUnit());
-        assertEquals(2.0, extend.doubleValue(), 0.001);
+        assertEquals(Units.MINUTE, extend.getUnit());
+        assertEquals(120.0, extend.doubleValue(), 0.001);
         QuantityType<?> fireplace = (QuantityType<?>) readState(CHANNEL_FIREPLACE_DURATION);
         assertEquals(Units.HOUR, fireplace.getUnit());
         assertEquals(5.0, fireplace.doubleValue(), 0.001);
+        QuantityType<?> vacationDefault = (QuantityType<?>) readState(CHANNEL_VACATION_DURATION_DEFAULT);
+        assertEquals(Units.DAY, vacationDefault.getUnit());
+        assertEquals(7.0, vacationDefault.doubleValue(), 0.001);
+        QuantityType<?> extendDefault = (QuantityType<?>) readState(CHANNEL_EXTEND_DURATION_DEFAULT);
+        assertEquals(Units.MINUTE, extendDefault.getUnit());
+        assertEquals(90.0, extendDefault.doubleValue(), 0.001);
     }
 
     @Test
