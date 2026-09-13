@@ -35,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
+import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.unit.SIUnits;
@@ -102,6 +103,13 @@ class AtagOneHandlerTest {
         Field field = AtagOneHandler.class.getDeclaredField("armedStartVacation");
         field.setAccessible(true);
         field.set(handler, epochOffset);
+    }
+
+    /** Directly sets the last-polled dhw_schedule.entries, simulating a prior poll. */
+    private void seedLastDhwScheduleEntries(double[][][] entries) throws ReflectiveOperationException {
+        Field field = AtagOneHandler.class.getDeclaredField("lastDhwScheduleEntries");
+        field.setAccessible(true);
+        field.set(handler, entries);
     }
 
     /** Loads the captured full-device fixture used elsewhere for DTO-parsing tests. */
@@ -381,6 +389,36 @@ class AtagOneHandlerTest {
 
         assertTrue(accepted);
         assertEquals(21.5, Objects.requireNonNull(control.ch_mode_temp), 0.001);
+    }
+
+    @Test
+    void dhwTargetTemperatureWriteResendsEntriesUnchanged() throws ReflectiveOperationException {
+        double[][][] entries = { { { 0, 360, 45.0 }, { 360, 1260, 50.0 }, { 1260, 1440, 45.0 } } };
+        seedLastDhwScheduleEntries(entries);
+
+        ScheduleDTO schedule = handler
+                .composeDhwScheduleUpdate(new org.openhab.core.library.types.QuantityType<>(48.0, SIUnits.CELSIUS));
+
+        assertNotNull(schedule);
+        assertEquals(48.0, schedule.base_temp, 0.001);
+        assertSame(entries, schedule.entries);
+    }
+
+    @Test
+    void dhwTargetTemperatureWriteRejectedWithoutPriorPoll() {
+        ScheduleDTO schedule = handler
+                .composeDhwScheduleUpdate(new org.openhab.core.library.types.QuantityType<>(48.0, SIUnits.CELSIUS));
+
+        assertNull(schedule);
+    }
+
+    @Test
+    void dhwTargetTemperatureWriteRejectsNonQuantityCommand() throws ReflectiveOperationException {
+        seedLastDhwScheduleEntries(new double[][][] { { { 0, 1440, 50.0 } } });
+
+        ScheduleDTO schedule = handler.composeDhwScheduleUpdate(new StringType("48"));
+
+        assertNull(schedule);
     }
 
     @Test

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
+import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -222,5 +223,27 @@ class AtagOneApiClientLiveTest {
                 "Room setpoint changed unexpectedly after no-op write");
 
         LOGGER.info("updateControl round-trip: OK (ch_mode_temp still {})", after.control.ch_mode_temp);
+    }
+
+    // ── Test 4: DHW schedule write ───────────────────────────────────────────
+
+    @Test
+    @Order(4)
+    void updateDhwScheduleRoundTrip() throws AtagOneCommunicationException {
+        RetrieveReplyDTO before = apiClient.retrieve();
+        double currentBaseTemp = before.schedules.dhw_schedule.base_temp;
+        LOGGER.info("updateDhwSchedule round-trip: base_temp = {}", currentBaseTemp);
+
+        ScheduleDTO update = new ScheduleDTO();
+        update.base_temp = currentBaseTemp;
+        update.entries = before.schedules.dhw_schedule.entries;
+
+        assertDoesNotThrow(() -> apiClient.updateDhwSchedule(update));
+
+        RetrieveReplyDTO after = apiClient.retrieve();
+        assertEquals(currentBaseTemp, after.schedules.dhw_schedule.base_temp, 0.001,
+                "dhw_schedule.base_temp changed unexpectedly after a no-op write");
+
+        LOGGER.info("updateDhwSchedule round-trip: OK (base_temp still {})", after.schedules.dhw_schedule.base_temp);
     }
 }

@@ -31,6 +31,7 @@ import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.PairReplyDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
+import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -250,6 +251,38 @@ public class AtagOneApiClient {
             throw new AtagOneCommunicationException("update denied: acc_status=" + accStatus);
         }
         logger.debug("updateControl() succeeded");
+    }
+
+    /**
+     * Writes the DHW schedule's fallback temperature. See {@link ScheduleDTO} and DEVELOPERS.md's
+     * schedules section for the required shape.
+     *
+     * @param dhwSchedule the complete schedule to send
+     * @throws AtagOneCommunicationException on transport or protocol failure
+     */
+    public void updateDhwSchedule(ScheduleDTO dhwSchedule) throws AtagOneCommunicationException {
+        JsonObject auth = new JsonObject();
+        auth.addProperty("user_account", "");
+        auth.addProperty("mac_address", clientId);
+
+        JsonObject schedules = new JsonObject();
+        schedules.add("dhw_schedule", gson.toJsonTree(dhwSchedule));
+
+        JsonObject updateMsg = new JsonObject();
+        updateMsg.addProperty("seqnr", 0);
+        updateMsg.add("account_auth", auth);
+        updateMsg.add("schedules", schedules);
+
+        JsonObject root = new JsonObject();
+        root.add("update_message", updateMsg);
+
+        String responseJson = sendRequest("/update", gson.toJson(root));
+        JsonObject reply = parseReplyObject(responseJson, "update_reply");
+        int accStatus = reply.has("acc_status") ? reply.get("acc_status").getAsInt() : 0;
+        if (accStatus != 2) {
+            throw new AtagOneCommunicationException("schedule update denied: acc_status=" + accStatus);
+        }
+        logger.debug("updateDhwSchedule() succeeded");
     }
 
     /**

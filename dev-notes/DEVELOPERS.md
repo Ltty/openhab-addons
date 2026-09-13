@@ -245,7 +245,7 @@ correctly, documented in full under Write semantics below.
 | `ch_mode` | int enum | — | **W** | `control#preset-mode` | VERIFIED `1=manual(R), 2=auto, 3=holiday, 4=extend, 5=fireplace` |
 | `ch_mode_duration` | long | s | R for its value; **must be written as `0` to cancel any timed preset**, and **must be present (any value) to activate fireplace specifically** | `control#preset-mode-duration` | VERIFIED, mode-dependent meaning — see below |
 | `ch_mode_temp` | double | °C | **W** | `heating#target-temperature`, `control#vacation-temperature` (mode-dependent) | VERIFIED |
-| `dhw_temp_setp` | double | °C | R — **not writable, despite earlier documentation and code claiming otherwise** | `hotwater#target-temperature` | VERIFIED (2026-08-31): writes are silently accepted (`acc_status:2`) but never change the value. It tracks whichever `schedules.dhw_schedule` entry is currently active. The real user-settable field is `schedules.dhw_schedule.base_temp` — see the `schedules` section below and the Gap analysis |
+| `dhw_temp_setp` | double | °C | R | `hotwater#target-temperature` (read side only) | Tracks whichever `schedules.dhw_schedule` entry/fallback is currently active. Writable again as of Phase C, but the write targets `schedules.dhw_schedule.base_temp`, not this field — see the `schedules` section below |
 | `dhw_status` | int (bitmask) | — | R | — | UNKNOWN |
 | `dhw_mode` | int enum | — | R | — (removed from channel list — see Gap analysis) | UNKNOWN values |
 | `dhw_mode_temp` | double | °C (presumed) | R | — | UNKNOWN — reads `150.0`, looks like a sentinel/unused value rather than a real temperature |
@@ -524,7 +524,7 @@ candidate contributors, none isolated:
 - `control.weather_temp` — the weather-service outdoor temperature, distinct from `report.outside_temp` (the boiler's own estimate, documented to go stale outside the heating season). The two are genuinely different data sources.
 - `report.dhw_water_pres` — pairs with the already-exposed `heating#water-pressure`; no reason DHW pressure is missing while CH pressure is present.
 - `report.details.regulation_state` — cheap, useful "is the regulation algorithm active" status, unlike the other `report.details` internals which have no external meaning.
-- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. Originally thought to only answer "what temperature applies when no schedule block is active"; now confirmed (2026-08-31) that `dhw_schedule.base_temp` is also the **actual writable target** for changing the DHW setpoint — `control.dhw_temp_setp` looked like that target but is read-only/derived. Writing `base_temp` requires sending the complete `dhw_schedule` object (`entries` included), not `base_temp` alone — VERIFIED (see the `schedules` section's Write shape). `hotwater#target-temperature` should become writable again once this write path is implemented (Phase C), targeting `base_temp` instead of `dhw_temp_setp`.
+- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. **Writable as of Phase C**: `hotwater#target-temperature` now writes `dhw_schedule.base_temp` (resending `entries` unchanged) instead of the read-only/derived `control.dhw_temp_setp`.
 
 **Recommended to expose as Thing properties (static identity, not channels):**
 

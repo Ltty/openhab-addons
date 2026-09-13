@@ -36,6 +36,7 @@ import org.openhab.binding.atagone.internal.api.AtagOneCommunicationException;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
+import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
 import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.OnOffType;
@@ -136,6 +137,9 @@ public class AtagOneHandler extends BaseThingHandler {
      */
     private volatile long armedStartVacation = 0L;
 
+    /** dhw_schedule.entries from the last poll; needed to resend the schedule unchanged on write. */
+    private volatile double @Nullable [][][] lastDhwScheduleEntries;
+
     public AtagOneHandler(Thing thing, HttpClient httpClient) {
         super(thing);
         this.httpClient = httpClient;
@@ -203,15 +207,24 @@ public class AtagOneHandler extends BaseThingHandler {
         }
 
         String channelId = channelUID.getId();
+
+        // Separate write path — see composeDhwScheduleUpdate().
+        if (CHANNEL_DHW_TARGET_TEMPERATURE.equals(channelId)) {
+            ScheduleDTO schedule = composeDhwScheduleUpdate(command);
+            if (schedule == null) {
+                logger.debug("Unhandled command {} for channel {}", command, channelId);
+                revertToLastKnownState(channelId);
+                return;
+            }
+            scheduler.execute(() -> sendDhwScheduleUpdate(client, schedule));
+            return;
+        }
+
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
         if (!buildControlUpdate(channelId, command, control, configUpdate)) {
             logger.debug("Unhandled command {} for channel {}", command, channelId);
-            // Push the last known good state back so the item doesn't stick at the rejected value.
-            State currentState = stateMap.get(channelId);
-            if (currentState != null) {
-                updateState(channelId, currentState);
-            }
+            revertToLastKnownState(channelId);
             return;
         }
 
@@ -274,6 +287,55 @@ public class AtagOneHandler extends BaseThingHandler {
                 logger.warn("Command failed for {}: {}", channelId, e.getMessage());
             } catch (RuntimeException e) {
                 logger.warn("Unexpected error sending command for {}: {}", channelId, e.getMessage(), e);
+            } finally {
+                startPollJob(POST_COMMAND_DELAY_S);
+            }
+        }
+    }
+
+    /** Pushes the last known good state back so an item doesn't stick at a rejected command's value. */
+    private void revertToLastKnownState(String channelId) {
+        State currentState = stateMap.get(channelId);
+        if (currentState != null) {
+            updateState(channelId, currentState);
+        }
+    }
+
+    /**
+     * Composes a {@code hotwater#target-temperature} write.
+     *
+     * @return the schedule to send, or {@code null} if the command isn't a temperature or no
+     *         schedule has been polled yet
+     */
+    @Nullable
+    ScheduleDTO composeDhwScheduleUpdate(Command command) {
+        if (!(command instanceof QuantityType<?> qt)) {
+            return null;
+        }
+        QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+        double[][][] entries = lastDhwScheduleEntries;
+        if (celsius == null || entries == null) {
+            return null;
+        }
+        ScheduleDTO schedule = new ScheduleDTO();
+        schedule.base_temp = celsius.doubleValue();
+        schedule.entries = entries;
+        return schedule;
+    }
+
+    /** Sends a DHW schedule update and restarts polling afterwards, mirroring {@link #sendControlUpdate}. */
+    private void sendDhwScheduleUpdate(AtagOneApiClient client, ScheduleDTO schedule) {
+        if (disposing) {
+            return;
+        }
+        synchronized (commandLock) {
+            stopPollJob();
+            try {
+                client.updateDhwSchedule(schedule);
+            } catch (AtagOneCommunicationException e) {
+                logger.warn("DHW schedule update failed: {}", e.getMessage());
+            } catch (RuntimeException e) {
+                logger.warn("Unexpected error updating DHW schedule: {}", e.getMessage(), e);
             } finally {
                 startPollJob(POST_COMMAND_DELAY_S);
             }
@@ -398,19 +460,6 @@ public class AtagOneHandler extends BaseThingHandler {
                     }
                     return true;
                 }
-                return false;
-
-            case CHANNEL_DHW_TARGET_TEMPERATURE:
-                /*
-                 * control.dhw_temp_setp is read-only/derived — confirmed live: writing it is
-                 * silently accepted by the device but never changes the actual value, which instead
-                 * tracks whichever schedules.dhw_schedule entry is currently active. The real
-                 * user-settable field is schedules.dhw_schedule.base_temp, requiring the full
-                 * schedule object to be sent — not implemented yet (schedule support is a future
-                 * phase). Rejected here rather than silently accepted and ignored.
-                 */
-                logger.warn(
-                        "dhw-target-temperature is read-only; the device has no direct control field for it, see DEVELOPERS.md");
                 return false;
 
             case CHANNEL_EXTEND_DURATION:
@@ -788,6 +837,7 @@ public class AtagOneHandler extends BaseThingHandler {
                 new QuantityType<>(r.schedules.ch_schedule.base_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.dhw_schedule.base_temp, SIUnits.CELSIUS));
+        lastDhwScheduleEntries = r.schedules.dhw_schedule.entries;
 
         // Control — setpoints and modes
         updateIfChanged(CHANNEL_TARGET_TEMPERATURE, new QuantityType<>(r.control.ch_mode_temp, SIUnits.CELSIUS));

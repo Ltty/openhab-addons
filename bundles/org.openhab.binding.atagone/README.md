@@ -106,13 +106,15 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#modulation-level` | `Number:Dimensionless` | R | Burner modulation level (%) |
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
+| `heating#schedule-base-temperature` | `Number:Temperature` | R | Central heating schedule's fallback temperature (advanced) |
 
 ### Hot Water (`hotwater#`)
 
 | Channel ID | Type | RW | Description |
 |------------|------|----|-------------|
-| `hotwater#target-temperature` | `Number:Temperature` | R | Hot Water Target Temperature — reflects the active schedule period; not writable (the device has no direct control field for it, see DEVELOPERS.md) |
+| `hotwater#target-temperature` | `Number:Temperature` | RW | Hot Water Target Temperature — reflects the active schedule period; writing it changes the schedule's fallback temperature |
 | `hotwater#temperature` | `Number:Temperature` | R | Hot Water Temperature |
+| `hotwater#schedule-base-temperature` | `Number:Temperature` | R | Hot water schedule's fallback temperature (advanced) |
 
 ### Alerts (`alerts#`)
 

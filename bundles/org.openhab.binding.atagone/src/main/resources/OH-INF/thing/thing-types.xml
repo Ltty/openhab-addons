@@ -244,18 +244,14 @@
 	<channel-type id="dhw-target-temperature">
 		<item-type>Number:Temperature</item-type>
 		<label>Hot Water Target Temperature</label>
-		<description>Target temperature for the hot water supply (taps and shower), reflecting whichever
-			schedule period is
-			currently active. Read-only: writing this field has no effect on the
-			device — the actual user-settable value is the
-			hot water schedule's base temperature, not
-			exposed as a channel yet.</description>
+		<description>Target temperature for the hot water supply (taps and shower), reflecting whichever schedule period is
+			currently active. Writing this channel changes the hot water schedule's fallback temperature.</description>
 		<category>Temperature</category>
 		<tags>
-			<tag>Measurement</tag>
+			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state readOnly="true" pattern="%.1f %unit%"/>
+		<state pattern="%.1f %unit%" min="10" max="65" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="ch-control-mode" advanced="true">
