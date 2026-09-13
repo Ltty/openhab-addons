@@ -106,7 +106,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#modulation-level` | `Number:Dimensionless` | R | Burner modulation level (%) |
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
-| `heating#schedule-base-temperature` | `Number:Temperature` | R | Central heating schedule's fallback temperature (advanced) |
+| `heating#schedule-base-temperature` | `Number:Temperature` | RW | Central heating schedule's fallback temperature (advanced) |
 
 ### Hot Water (`hotwater#`)
 

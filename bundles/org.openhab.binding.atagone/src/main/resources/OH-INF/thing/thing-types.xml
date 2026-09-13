@@ -196,14 +196,13 @@
 	<channel-type id="ch-schedule-base-temperature" advanced="true">
 		<item-type>Number:Temperature</item-type>
 		<label>Schedule Temperature</label>
-		<description>Central heating schedule's fallback setpoint for any time not covered by a scheduled
-			period.</description>
+		<description>Central heating schedule's fallback setpoint for any time not covered by a scheduled period.</description>
 		<category>Temperature</category>
 		<tags>
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state readOnly="true" pattern="%.1f %unit%"/>
+		<state pattern="%.1f %unit%" min="4" max="30" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="ch-setpoint" advanced="true">

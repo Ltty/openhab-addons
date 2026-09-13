@@ -537,7 +537,7 @@ change in write shape, mode, or other observable state.
 - `control.weather_temp` — the weather-service outdoor temperature, distinct from `report.outside_temp` (the boiler's own estimate, documented to go stale outside the heating season). The two are genuinely different data sources.
 - `report.dhw_water_pres` — pairs with the already-exposed `heating#water-pressure`; no reason DHW pressure is missing while CH pressure is present.
 - `report.details.regulation_state` — cheap, useful "is the regulation algorithm active" status, unlike the other `report.details` internals which have no external meaning.
-- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. **Writable as of Phase C**: `hotwater#target-temperature` now writes `dhw_schedule.base_temp` (resending `entries` unchanged) instead of the read-only/derived `control.dhw_temp_setp`.
+- `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. **Both writable now**: `hotwater#target-temperature` writes `dhw_schedule.base_temp` (Phase C), and `heating#schedule-base-temperature` itself writes `ch_schedule.base_temp` directly (Phase D) — unlike DHW, CH's `target-temperature` channel already worked correctly via `control.ch_mode_temp`, so this was a new capability rather than a bug fix. Both resend `entries` unchanged, per the confirmed write shape.
 
 **Recommended to expose as Thing properties (static identity, not channels):**
 

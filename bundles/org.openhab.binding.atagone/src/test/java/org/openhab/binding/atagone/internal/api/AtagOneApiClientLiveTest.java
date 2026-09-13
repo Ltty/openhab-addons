@@ -246,4 +246,26 @@ class AtagOneApiClientLiveTest {
 
         LOGGER.info("updateDhwSchedule round-trip: OK (base_temp still {})", after.schedules.dhw_schedule.base_temp);
     }
+
+    // ── Test 5: CH schedule write ────────────────────────────────────────────
+
+    @Test
+    @Order(5)
+    void updateChScheduleRoundTrip() throws AtagOneCommunicationException {
+        RetrieveReplyDTO before = apiClient.retrieve();
+        double currentBaseTemp = before.schedules.ch_schedule.base_temp;
+        LOGGER.info("updateChSchedule round-trip: base_temp = {}", currentBaseTemp);
+
+        ScheduleDTO update = new ScheduleDTO();
+        update.base_temp = currentBaseTemp;
+        update.entries = before.schedules.ch_schedule.entries;
+
+        assertDoesNotThrow(() -> apiClient.updateChSchedule(update));
+
+        RetrieveReplyDTO after = apiClient.retrieve();
+        assertEquals(currentBaseTemp, after.schedules.ch_schedule.base_temp, 0.001,
+                "ch_schedule.base_temp changed unexpectedly after a no-op write");
+
+        LOGGER.info("updateChSchedule round-trip: OK (base_temp still {})", after.schedules.ch_schedule.base_temp);
+    }
 }

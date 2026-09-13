@@ -105,6 +105,13 @@ class AtagOneHandlerTest {
         field.set(handler, epochOffset);
     }
 
+    /** Directly sets the last-polled ch_schedule.entries, simulating a prior poll. */
+    private void seedLastChScheduleEntries(double[][][] entries) throws ReflectiveOperationException {
+        Field field = AtagOneHandler.class.getDeclaredField("lastChScheduleEntries");
+        field.setAccessible(true);
+        field.set(handler, entries);
+    }
+
     /** Directly sets the last-polled dhw_schedule.entries, simulating a prior poll. */
     private void seedLastDhwScheduleEntries(double[][][] entries) throws ReflectiveOperationException {
         Field field = AtagOneHandler.class.getDeclaredField("lastDhwScheduleEntries");
@@ -389,6 +396,36 @@ class AtagOneHandlerTest {
 
         assertTrue(accepted);
         assertEquals(21.5, Objects.requireNonNull(control.ch_mode_temp), 0.001);
+    }
+
+    @Test
+    void chScheduleBaseTemperatureWriteResendsEntriesUnchanged() throws ReflectiveOperationException {
+        double[][][] entries = { { { 0, 240, 20.5 }, { 1230, 1440, 20.5 } } };
+        seedLastChScheduleEntries(entries);
+
+        ScheduleDTO schedule = handler
+                .composeChScheduleUpdate(new org.openhab.core.library.types.QuantityType<>(21.0, SIUnits.CELSIUS));
+
+        assertNotNull(schedule);
+        assertEquals(21.0, schedule.base_temp, 0.001);
+        assertSame(entries, schedule.entries);
+    }
+
+    @Test
+    void chScheduleBaseTemperatureWriteRejectedWithoutPriorPoll() {
+        ScheduleDTO schedule = handler
+                .composeChScheduleUpdate(new org.openhab.core.library.types.QuantityType<>(21.0, SIUnits.CELSIUS));
+
+        assertNull(schedule);
+    }
+
+    @Test
+    void chScheduleBaseTemperatureWriteRejectsNonQuantityCommand() throws ReflectiveOperationException {
+        seedLastChScheduleEntries(new double[][][] { { { 0, 1440, 20.5 } } });
+
+        ScheduleDTO schedule = handler.composeChScheduleUpdate(new StringType("21"));
+
+        assertNull(schedule);
     }
 
     @Test

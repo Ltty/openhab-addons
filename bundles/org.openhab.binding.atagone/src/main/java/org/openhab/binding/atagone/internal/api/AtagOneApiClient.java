@@ -254,6 +254,17 @@ public class AtagOneApiClient {
     }
 
     /**
+     * Writes the CH schedule's fallback temperature. See {@link ScheduleDTO} and DEVELOPERS.md's
+     * schedules section for the required shape.
+     *
+     * @param chSchedule the complete schedule to send
+     * @throws AtagOneCommunicationException on transport or protocol failure
+     */
+    public void updateChSchedule(ScheduleDTO chSchedule) throws AtagOneCommunicationException {
+        updateSchedule("ch_schedule", chSchedule);
+    }
+
+    /**
      * Writes the DHW schedule's fallback temperature. See {@link ScheduleDTO} and DEVELOPERS.md's
      * schedules section for the required shape.
      *
@@ -261,12 +272,16 @@ public class AtagOneApiClient {
      * @throws AtagOneCommunicationException on transport or protocol failure
      */
     public void updateDhwSchedule(ScheduleDTO dhwSchedule) throws AtagOneCommunicationException {
+        updateSchedule("dhw_schedule", dhwSchedule);
+    }
+
+    private void updateSchedule(String key, ScheduleDTO schedule) throws AtagOneCommunicationException {
         JsonObject auth = new JsonObject();
         auth.addProperty("user_account", "");
         auth.addProperty("mac_address", clientId);
 
         JsonObject schedules = new JsonObject();
-        schedules.add("dhw_schedule", gson.toJsonTree(dhwSchedule));
+        schedules.add(key, gson.toJsonTree(schedule));
 
         JsonObject updateMsg = new JsonObject();
         updateMsg.addProperty("seqnr", 0);
@@ -282,7 +297,7 @@ public class AtagOneApiClient {
         if (accStatus != 2) {
             throw new AtagOneCommunicationException("schedule update denied: acc_status=" + accStatus);
         }
-        logger.debug("updateDhwSchedule() succeeded");
+        logger.debug("updateSchedule({}) succeeded", key);
     }
 
     /**

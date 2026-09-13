@@ -137,6 +137,9 @@ public class AtagOneHandler extends BaseThingHandler {
      */
     private volatile long armedStartVacation = 0L;
 
+    /** ch_schedule.entries from the last poll; needed to resend the schedule unchanged on write. */
+    private volatile double @Nullable [][][] lastChScheduleEntries;
+
     /** dhw_schedule.entries from the last poll; needed to resend the schedule unchanged on write. */
     private volatile double @Nullable [][][] lastDhwScheduleEntries;
 
@@ -208,7 +211,17 @@ public class AtagOneHandler extends BaseThingHandler {
 
         String channelId = channelUID.getId();
 
-        // Separate write path — see composeDhwScheduleUpdate().
+        // Separate write path — see composeChScheduleUpdate()/composeDhwScheduleUpdate().
+        if (CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE.equals(channelId)) {
+            ScheduleDTO schedule = composeChScheduleUpdate(command);
+            if (schedule == null) {
+                logger.debug("Unhandled command {} for channel {}", command, channelId);
+                revertToLastKnownState(channelId);
+                return;
+            }
+            scheduler.execute(() -> sendChScheduleUpdate(client, schedule));
+            return;
+        }
         if (CHANNEL_DHW_TARGET_TEMPERATURE.equals(channelId)) {
             ScheduleDTO schedule = composeDhwScheduleUpdate(command);
             if (schedule == null) {
@@ -298,6 +311,47 @@ public class AtagOneHandler extends BaseThingHandler {
         State currentState = stateMap.get(channelId);
         if (currentState != null) {
             updateState(channelId, currentState);
+        }
+    }
+
+    /**
+     * Composes a {@code heating#schedule-base-temperature} write.
+     *
+     * @return the schedule to send, or {@code null} if the command isn't a temperature or no
+     *         schedule has been polled yet
+     */
+    @Nullable
+    ScheduleDTO composeChScheduleUpdate(Command command) {
+        if (!(command instanceof QuantityType<?> qt)) {
+            return null;
+        }
+        QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+        double[][][] entries = lastChScheduleEntries;
+        if (celsius == null || entries == null) {
+            return null;
+        }
+        ScheduleDTO schedule = new ScheduleDTO();
+        schedule.base_temp = celsius.doubleValue();
+        schedule.entries = entries;
+        return schedule;
+    }
+
+    /** Sends a CH schedule update and restarts polling afterwards, mirroring {@link #sendControlUpdate}. */
+    private void sendChScheduleUpdate(AtagOneApiClient client, ScheduleDTO schedule) {
+        if (disposing) {
+            return;
+        }
+        synchronized (commandLock) {
+            stopPollJob();
+            try {
+                client.updateChSchedule(schedule);
+            } catch (AtagOneCommunicationException e) {
+                logger.warn("CH schedule update failed: {}", e.getMessage());
+            } catch (RuntimeException e) {
+                logger.warn("Unexpected error updating CH schedule: {}", e.getMessage(), e);
+            } finally {
+                startPollJob(POST_COMMAND_DELAY_S);
+            }
         }
     }
 
@@ -835,6 +889,7 @@ public class AtagOneHandler extends BaseThingHandler {
         // Schedules — fallback setpoints outside any active entry
         updateIfChanged(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.ch_schedule.base_temp, SIUnits.CELSIUS));
+        lastChScheduleEntries = r.schedules.ch_schedule.entries;
         updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.dhw_schedule.base_temp, SIUnits.CELSIUS));
         lastDhwScheduleEntries = r.schedules.dhw_schedule.entries;
