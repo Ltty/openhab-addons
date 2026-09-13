@@ -110,6 +110,13 @@ had not applied; every write that returned an immediate `acc_status:2` had appli
 confirming a write via a follow-up `/retrieve` when it matters, but an empty reply on `/update` is a
 much stronger failure signal in practice than "must never be treated as definitive" suggests.
 
+**Correction, VERIFIED 2026-09-13 (Phase E):** a client-side timeout on `/update` (`curl: (28) Operation
+timed out`, no response at all within 15s) is *not* the same as an empty reply, and does not reliably
+mean failure — a 19-field config-bundle write that timed out client-side had, per a follow-up
+`/retrieve`, actually applied correctly. Treat a timeout the same as an empty reply: inconclusive on
+its own, always confirm via `/retrieve`, never assume it failed just because assuming it succeeded
+would be wrong to do unconditionally either.
+
 ## The `info` bitmask
 
 ```text
@@ -496,6 +503,13 @@ form shape (every writable `configuration` field above, resent at its current va
 changed `ch_control_mode`). VERIFIED working in both directions (room→weather and weather→room) via
 this exact shape. **Implemented (Phase E, 2026-09-13)**: `heating#control-mode` is writable, composing
 the bundle from the last polled configuration via `AtagOneHandler.fillConfigBundle()`.
+
+**Live write gate, VERIFIED 2026-09-13.** Full round-trip room→weather→room via the actual bundle
+shape: a complete `/retrieve` was captured before and after, and every field in `configuration` was
+programmatically diffed — zero differences, only `control.ch_control_mode` changed in either
+direction. `resets` never moved. The room→weather write returned a client-side timeout (no response
+within 15s) rather than an empty reply or `acc_status`, yet had still applied — see the timeout note
+above.
 
 ## Writability policy
 
