@@ -97,8 +97,9 @@ public class AtagOneActions implements ThingActions {
             logger.warn("activateExtend: duration must be positive, got {}", durationSeconds);
             return;
         }
-        if (!AtagOneHandler.isWholeUnits(durationSeconds, AtagOneHandler.SECONDS_PER_HOUR)) {
-            logger.warn("activateExtend: duration must be a whole number of hours, got {} s", durationSeconds);
+        if (!AtagOneHandler.isWholeUnits(durationSeconds, AtagOneHandler.SECONDS_PER_15_MINUTES)) {
+            logger.warn("activateExtend: duration must be a whole number of 15-minute increments, got {} s",
+                    durationSeconds);
             return;
         }
         ControlUpdateDTO control = new ControlUpdateDTO();

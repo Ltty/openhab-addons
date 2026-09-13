@@ -68,6 +68,27 @@ even after disabling and re-enabling it. Channel links to any moved/renamed chan
 found" until the Thing itself is deleted and re-added with the same UID and configuration. After that, re-link
 the channels that changed group.
 
+**Also in this release, aligned to the terminology the ATAG app and manual actually use:**
+`heating#isolation` → `heating#insulation` (channel ID rename, needs re-linking like the group change
+above); `heating#control-mode`'s values `room`/`weather` → `thermostat`/`weather-dependent`;
+`heating#frost-protection`'s values `outdoor`/`indoor` → `outside`/`inside`;
+`heating#wdr-temperature-influence`'s values `average`/`room-regulation` → `medium`/`room-control`.
+These are item _state_ value changes, not channel renames — no re-linking needed, but any rule
+comparing against the old string values must be updated.
+
+## Thing Properties
+
+Populated from the device once it's paired, matching the portal's Account → Devices screen:
+
+| Property | Description |
+|----------|-------------|
+| `deviceId` | The ONE controller's own identifier (also the representation property) |
+| `serialNumber` | Boiler serial number (P-number) |
+| `vendor` | Always `ATAG` |
+| `firmwareVersion` | Firmware version, parsed from the device's update-check URL |
+| `boilerDetectType` | Device-reported boiler detection type (raw integer, meaning not decoded) |
+| `installerId` | Installer identifier, if the installer has registered one on the device |
+
 ## Channels
 
 Channels are organized into five groups, by subsystem: **Operating Mode** (active preset and timed
@@ -85,10 +106,12 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `control#vacation-temperature` | `Number:Temperature` | RW | Setpoint during vacation |
 | `control#vacation-start` | `DateTime` | R | Vacation period start (advanced) |
 | `control#vacation-end` | `DateTime` | R | Vacation period end (advanced) |
-| `control#extend-duration` | `Number:Time` | RW | **Value-setter only** — writing it does not activate extend mode. This is **additional** time on top of whatever's left until the device's next programmed schedule change, not an absolute session length. Persists across cancel (unlike the other two duration channels). See `preset-mode-duration` for the actual remaining-time countdown |
-| `control#fireplace-duration` | `Number:Time` | RW | Fireplace mode duration in hours — **value-setter only**, writing it does not activate fireplace mode. Reverts to the factory default (1 h) on cancel |
+| `control#extend-duration` | `Number:Time` | RW | **Value-setter only** — writing it does not activate extend mode. In 15-minute increments, 15 min – 6 h. This is **additional** time on top of whatever's left until the device's next programmed schedule change, not an absolute session length. Persists across cancel (unlike the other two duration channels). See `preset-mode-duration` for the actual remaining-time countdown |
+| `control#fireplace-duration` | `Number:Time` | RW | Fireplace mode duration in hours, 1–24 — **value-setter only**, writing it does not activate fireplace mode. Reverts to the factory default (1 h) on cancel |
 | `control#vacation-duration-default` | `Number:Time` | RW | Stored default vacation duration used when holiday mode starts with no explicit duration (advanced) |
-| `control#extend-duration-default` | `Number:Time` | RW | Stored default extend duration used when extend mode starts with no explicit duration (advanced) |
+| `control#extend-duration-default` | `Number:Time` | RW | Stored default extend duration used when extend mode starts with no explicit duration, in 15-minute increments (advanced) |
+| `control#next-schedule-time` | `DateTime` | R | When the central heating schedule's next entry starts (advanced) |
+| `control#next-schedule-temperature` | `Number:Temperature` | R | Setpoint the central heating schedule's next entry sets (advanced) |
 
 ### Central Heating (`heating#`)
 
@@ -101,33 +124,39 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#water-temperature` | `Number:Temperature` | R | Heating Circuit Temperature |
 | `heating#return-temperature` | `Number:Temperature` | R | Heating Circuit Return Temperature (advanced) |
 | `heating#water-pressure` | `Number:Pressure` | R | CH circuit water pressure |
+| `heating#delta-temperature` | `Number:Temperature` | R | Difference between flow and return temperature (advanced) |
 | `heating#water-setpoint` | `Number:Temperature` | R | Boiler Target Water Temperature (advanced) |
-| `heating#control-mode` | `String` | RW | `room` (room-sensor setpoint control) or `weather` (weather-compensated heating curve) — independent of `preset-mode` (advanced) |
+| `heating#control-mode` | `String` | RW | `thermostat` (room-sensor setpoint control) or `weather-dependent` (weather-compensated heating curve) — independent of `preset-mode` (advanced) |
 | `heating#flame` | `Switch` | R | Burner flame active |
 | `heating#burner-target` | `String` | R | `none`, `ch`, or `dhw` |
+| `heating#central-heating-active` | `Switch` | R | ON when the boiler is actively serving central heating demand |
+| `heating#weather-temperature` | `Number:Temperature` | R | Outside temperature from the local weather service (advanced) |
+| `heating#regulation-state` | `Switch` | R | Whether the weather-compensation regulation algorithm is active — inferred, not device-confirmed (advanced) |
 | `heating#modulation-level` | `Number:Dimensionless` | R | Burner modulation level (%) |
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
 | `heating#schedule-base-temperature` | `Number:Temperature` | RW | Central heating schedule's fallback temperature (advanced) |
-| `heating#frost-protection` | `String` | RW | Which sensor(s) frost protection uses: `off`, `outdoor`, `indoor`, `both` (advanced) |
-| `heating#frost-protection-temperature-room` | `Number:Temperature` | RW | Indoor threshold below which frost protection activates (advanced) |
-| `heating#frost-protection-temperature-outside` | `Number:Temperature` | RW | Outdoor threshold below which frost protection activates (advanced) |
+| `heating#frost-protection` | `String` | RW | Which sensor(s) frost protection uses: `off`, `outside`, `inside`, `both` (advanced) |
+| `heating#frost-protection-temperature-room` | `Number:Temperature` | RW | Indoor threshold below which frost protection activates, 4–10 °C (advanced) |
+| `heating#frost-protection-temperature-outside` | `Number:Temperature` | RW | Outdoor threshold below which frost protection activates, -10–5 °C (advanced) |
 | `heating#summer-eco-mode` | `Switch` | RW | Reduces heating activity once the outside temperature is warm enough (advanced) |
 | `heating#summer-eco-temperature` | `Number:Temperature` | RW | Outside temperature above which summer eco mode activates (advanced) |
 | `heating#heating-type` | `String` | RW | Installed heating system type, used by the weather-compensation algorithm (advanced) |
-| `heating#isolation` | `String` | RW | Building insulation quality, used by the weather-compensation algorithm (advanced) |
+| `heating#insulation` | `String` | RW | Building insulation quality, used by the weather-compensation algorithm (advanced) |
 | `heating#building-size` | `String` | RW | Building size, used by the weather-compensation algorithm (advanced) |
 | `heating#wdr-temperature-influence` | `String` | RW | How strongly room temperature influences the weather-compensated heating curve (advanced) |
 | `heating#climate-zone` | `Number:Temperature` | RW | Reference outdoor design temperature for the local climate (advanced) |
-| `heating#max-preheat` | `Number:Time` | RW | Maximum pre-heat time before a scheduled temperature change (advanced) |
+| `heating#max-preheat` | `String` | RW | Maximum pre-heat time before a scheduled temperature change: `off`, `1h`, `2h`, `3h`, or `automatic` (advanced) |
 
 ### Hot Water (`hotwater#`)
 
 | Channel ID | Type | RW | Description |
 |------------|------|----|-------------|
-| `hotwater#target-temperature` | `Number:Temperature` | RW | Hot Water Target Temperature — reflects the active schedule period; writing it changes the schedule's fallback temperature |
+| `hotwater#target-temperature` | `Number:Temperature` | R | Hot Water Target Temperature — reflects the active schedule period |
 | `hotwater#temperature` | `Number:Temperature` | R | Hot Water Temperature |
-| `hotwater#schedule-base-temperature` | `Number:Temperature` | R | Hot water schedule's fallback temperature (advanced) |
+| `hotwater#water-pressure` | `Number:Pressure` | R | DHW circuit water pressure (advanced) |
+| `hotwater#hot-water-active` | `Switch` | R | ON when the boiler is actively serving hot water demand |
+| `hotwater#schedule-base-temperature` | `Number:Temperature` | RW | Hot water schedule's fallback temperature — its bounds come from the device (10–65 °C on a combi boiler, wider on a system boiler with a 3-port valve kit) (advanced) |
 | `hotwater#legionella-protection` | `Switch` | RW | Periodically heats the tank above a threshold to kill legionella bacteria (advanced) |
 | `hotwater#legionella-protection-day` | `String` | RW | Weekday legionella protection runs on (advanced) |
 | `hotwater#legionella-protection-time` | `Number:Time` | RW | Time of day legionella protection starts at (advanced) |
@@ -136,7 +165,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 
 | Channel ID | Type | RW | Description |
 |------------|------|----|-------------|
-| `device#display-brightness` | `Number:Dimensionless` | RW | Thermostat display brightness (advanced) |
+| `device#display-brightness` | `Number:Dimensionless` | RW | Thermostat display brightness, 10–100% (advanced) |
 | `device#time-zone` | `String` | R | Configured time zone. Only `berlin` is device-confirmed; any other value reads as `unknown` (advanced) |
 | `device#language` | `Number` | R | Display language, as a device-defined integer not mapped to a locale by this binding (advanced) |
 

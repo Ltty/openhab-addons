@@ -52,6 +52,8 @@
 			<channel id="fireplace-remaining" typeId="fireplace-remaining"/>
 			<channel id="vacation-duration-default" typeId="vacation-duration-default"/>
 			<channel id="extend-duration-default" typeId="extend-duration-default"/>
+			<channel id="next-schedule-time" typeId="next-schedule-time"/>
+			<channel id="next-schedule-temperature" typeId="next-schedule-temperature"/>
 		</channels>
 	</channel-group-type>
 
@@ -66,11 +68,15 @@
 			<channel id="weather-status" typeId="weather-status"/>
 			<channel id="water-temperature" typeId="ch-water-temperature"/>
 			<channel id="return-temperature" typeId="ch-return-temperature"/>
+			<channel id="delta-temperature" typeId="delta-temperature"/>
 			<channel id="water-pressure" typeId="ch-water-pressure"/>
 			<channel id="water-setpoint" typeId="ch-setpoint"/>
 			<channel id="control-mode" typeId="ch-control-mode"/>
 			<channel id="flame" typeId="flame"/>
 			<channel id="burner-target" typeId="burner-target"/>
+			<channel id="central-heating-active" typeId="central-heating-active"/>
+			<channel id="weather-temperature" typeId="weather-temperature"/>
+			<channel id="regulation-state" typeId="regulation-state"/>
 			<channel id="modulation-level" typeId="modulation-level"/>
 			<channel id="min-modulation-level" typeId="min-modulation-level"/>
 			<channel id="burning-hours" typeId="burning-hours"/>
@@ -86,7 +92,7 @@
 			<channel id="summer-eco-mode" typeId="summer-eco-mode"/>
 			<channel id="summer-eco-temperature" typeId="summer-eco-temperature"/>
 			<channel id="heating-type" typeId="heating-type"/>
-			<channel id="isolation" typeId="isolation"/>
+			<channel id="insulation" typeId="insulation"/>
 			<channel id="building-size" typeId="building-size"/>
 			<channel id="wdr-temperature-influence" typeId="wdr-temperature-influence"/>
 			<channel id="climate-zone" typeId="climate-zone"/>
@@ -100,7 +106,9 @@
 		<channels>
 			<channel id="temperature" typeId="dhw-temperature"/>
 			<channel id="target-temperature" typeId="dhw-target-temperature"/>
+			<channel id="water-pressure" typeId="dhw-water-pressure"/>
 			<channel id="flow-rate" typeId="dhw-flow-rate"/>
+			<channel id="hot-water-active" typeId="hot-water-active"/>
 			<channel id="schedule-base-temperature" typeId="dhw-schedule-base-temperature"/>
 			<channel id="legionella-protection" typeId="legionella-protection"/>
 			<channel id="legionella-protection-day" typeId="legionella-protection-day"/>
@@ -158,7 +166,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="4" max="30" step="0.5"/>
+		<state pattern="%.1f %unit%" min="4" max="27" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="outside-temperature">
@@ -221,7 +229,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="4" max="30" step="0.5"/>
+		<state pattern="%.1f %unit%" min="4" max="27" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="ch-setpoint" advanced="true">
@@ -256,27 +264,27 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state readOnly="true" pattern="%.1f %unit%"/>
+		<state pattern="%.1f %unit%" min="10" max="65" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="dhw-target-temperature">
 		<item-type>Number:Temperature</item-type>
 		<label>Hot Water Target Temperature</label>
 		<description>Target temperature for the hot water supply (taps and shower), reflecting whichever schedule period is
-			currently active. Writing this channel changes the hot water schedule's fallback temperature.</description>
+			currently active.</description>
 		<category>Temperature</category>
 		<tags>
-			<tag>Setpoint</tag>
+			<tag>Measurement</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="10" max="65" step="0.5"/>
+		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
 	<channel-type id="ch-control-mode" advanced="true">
 		<item-type>String</item-type>
-		<label>Heating Control Type</label>
-		<description>Whether heating is controlled by the room sensor or by an outdoor-temperature-driven curve (no room
-			setpoint).</description>
+		<label>Control Mode</label>
+		<description>Whether heating is controlled by the room sensor (thermostat) or by an outdoor-temperature-driven curve
+			(weather-dependent).</description>
 		<category>HVAC</category>
 		<tags>
 			<tag>Control</tag>
@@ -284,8 +292,8 @@
 		</tags>
 		<state>
 			<options>
-				<option value="room">Room</option>
-				<option value="weather">Weather</option>
+				<option value="thermostat">Thermostat</option>
+				<option value="weather-dependent">Weather Dependent</option>
 			</options>
 		</state>
 	</channel-type>
@@ -417,7 +425,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="4" max="15" step="0.5"/>
+		<state pattern="%.1f %unit%" min="4" max="27" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="fireplace-duration">
@@ -429,11 +437,11 @@
 			Ending fireplace mode requires a button
 			press on the
 			thermostat display.</description>
-		<state pattern="%.0f %unit%" min="1" step="1"/>
+		<state pattern="%.0f %unit%" min="1" max="24" step="1"/>
 	</channel-type>
 
 	<channel-type id="extend-duration">
-		<item-type unitHint="h">Number:Time</item-type>
+		<item-type unitHint="min">Number:Time</item-type>
 		<label>Extend Duration</label>
 		<description>Extra time added on top of the remaining schedule when extend mode starts — not a fixed
 			session length.
@@ -441,7 +449,7 @@
 			start extend mode. Unlike holiday and
 			fireplace, this value is
 			kept after extend mode ends.</description>
-		<state pattern="%.0f %unit%" min="1" step="1"/>
+		<state pattern="%.0f %unit%" min="15" max="360" step="15"/>
 	</channel-type>
 
 	<channel-type id="weather-status">
@@ -633,7 +641,7 @@
 	</channel-type>
 
 	<channel-type id="extend-duration-default" advanced="true">
-		<item-type unitHint="h">Number:Time</item-type>
+		<item-type unitHint="min">Number:Time</item-type>
 		<label>Extend Duration Default</label>
 		<description>The device's stored default extend duration, used when activating extend mode with no explicit duration
 			set.</description>
@@ -641,7 +649,7 @@
 		<tags>
 			<tag>Control</tag>
 		</tags>
-		<state pattern="%.0f %unit%" min="1" step="1"/>
+		<state pattern="%.0f %unit%" min="15" max="360" step="15"/>
 	</channel-type>
 
 	<channel-type id="frost-protection" advanced="true">
@@ -656,9 +664,9 @@
 		<state>
 			<options>
 				<option value="off">Off</option>
-				<option value="outdoor">Outdoor Sensor</option>
-				<option value="indoor">Indoor Sensor</option>
-				<option value="both">Indoor and Outdoor</option>
+				<option value="outside">Outside</option>
+				<option value="inside">Inside</option>
+				<option value="both">Inside and Outside</option>
 			</options>
 		</state>
 	</channel-type>
@@ -672,7 +680,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="0" max="15" step="0.5"/>
+		<state pattern="%.1f %unit%" min="4" max="10" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="frost-protection-temperature-outside" advanced="true">
@@ -684,7 +692,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="-20" max="10" step="0.5"/>
+		<state pattern="%.1f %unit%" min="-10" max="5" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="summer-eco-mode" advanced="true">
@@ -704,7 +712,7 @@
 			<tag>Setpoint</tag>
 			<tag>Temperature</tag>
 		</tags>
-		<state pattern="%.1f %unit%" min="10" max="30" step="0.5"/>
+		<state pattern="%.1f %unit%" min="4" max="27" step="0.5"/>
 	</channel-type>
 
 	<channel-type id="heating-type" advanced="true">
@@ -723,9 +731,9 @@
 		</state>
 	</channel-type>
 
-	<channel-type id="isolation" advanced="true">
+	<channel-type id="insulation" advanced="true">
 		<item-type>String</item-type>
-		<label>Isolation Quality</label>
+		<label>Insulation Level</label>
 		<description>The building's insulation quality, used by the weather-compensation algorithm.</description>
 		<state>
 			<options>
@@ -751,7 +759,7 @@
 
 	<channel-type id="wdr-temperature-influence" advanced="true">
 		<item-type>String</item-type>
-		<label>Weather Influence</label>
+		<label>Room Influence</label>
 		<description>How strongly room temperature influences the weather-compensated heating curve.</description>
 		<tags>
 			<tag>Control</tag>
@@ -761,9 +769,9 @@
 			<options>
 				<option value="off">Off</option>
 				<option value="less">Less</option>
-				<option value="average">Average</option>
+				<option value="medium">Medium</option>
 				<option value="more">More</option>
-				<option value="room-regulation">Room Regulation</option>
+				<option value="room-control">Room Control</option>
 			</options>
 		</state>
 	</channel-type>
@@ -781,12 +789,19 @@
 	</channel-type>
 
 	<channel-type id="max-preheat" advanced="true">
-		<item-type unitHint="min">Number:Time</item-type>
+		<item-type>String</item-type>
 		<label>Max Preheat</label>
-		<description>Maximum time the boiler may pre-heat before a scheduled temperature change. Only 1440 (Automatic) is
-			device-confirmed; other values are unverified.</description>
+		<description>How long before a scheduled setpoint the boiler may start heating early.</description>
 		<category>Time</category>
-		<state pattern="%d %unit%" min="0" max="1440"/>
+		<state>
+			<options>
+				<option value="off">Off</option>
+				<option value="1h">1 Hour</option>
+				<option value="2h">2 Hours</option>
+				<option value="3h">3 Hours</option>
+				<option value="automatic">Automatic</option>
+			</options>
+		</state>
 	</channel-type>
 
 	<channel-type id="legionella-protection" advanced="true">
@@ -825,7 +840,7 @@
 		<item-type>Number:Dimensionless</item-type>
 		<label>Display Brightness</label>
 		<description>The thermostat's display brightness.</description>
-		<state pattern="%d %unit%" min="0" max="100"/>
+		<state pattern="%d %unit%" min="10" max="100"/>
 	</channel-type>
 
 	<channel-type id="time-zone" advanced="true">
@@ -841,6 +856,98 @@
 		<label>Display Language</label>
 		<description>The thermostat's display language, as a device-defined integer not mapped to a locale by this binding.</description>
 		<state readOnly="true"/>
+	</channel-type>
+
+	<!-- ═══════════════════════════════════════════════════════════════════════
+		Exposure reconciliation channels (Phase I) — values the portal shows
+		that the binding was missing.
+		═══════════════════════════════════════════════════════════════════════ -->
+
+	<channel-type id="delta-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Delta Temperature</label>
+		<description>Difference between the heating circuit's flow and return temperature.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="central-heating-active">
+		<item-type>Switch</item-type>
+		<label>Central Heating Active</label>
+		<description>ON when the boiler is actively serving central heating demand.</description>
+		<tags>
+			<tag>Status</tag>
+		</tags>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="hot-water-active">
+		<item-type>Switch</item-type>
+		<label>Hot Water Active</label>
+		<description>ON when the boiler is actively serving hot water demand.</description>
+		<tags>
+			<tag>Status</tag>
+		</tags>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="dhw-water-pressure" advanced="true">
+		<item-type>Number:Pressure</item-type>
+		<label>DHW Water Pressure</label>
+		<description>Domestic hot water circuit water pressure.</description>
+		<category>Pressure</category>
+		<tags>
+			<tag>Measurement</tag>
+		</tags>
+		<state readOnly="true" pattern="%.2f %unit%"/>
+	</channel-type>
+
+	<channel-type id="weather-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Weather Service Temperature</label>
+		<description>Outside temperature from the local weather service, distinct from the boiler's own estimate.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Measurement</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
+	</channel-type>
+
+	<channel-type id="regulation-state" advanced="true">
+		<item-type>Switch</item-type>
+		<label>Regulation Active</label>
+		<description>Whether the weather-compensation regulation algorithm is currently active. Inferred from field naming,
+			not device-confirmed.</description>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="next-schedule-time" advanced="true">
+		<item-type>DateTime</item-type>
+		<label>Next Schedule Time</label>
+		<description>When the central heating schedule's next entry starts.</description>
+		<category>Time</category>
+		<tags>
+			<tag>Status</tag>
+			<tag>Timestamp</tag>
+		</tags>
+		<state readOnly="true"/>
+	</channel-type>
+
+	<channel-type id="next-schedule-temperature" advanced="true">
+		<item-type>Number:Temperature</item-type>
+		<label>Next Schedule Temperature</label>
+		<description>Setpoint the central heating schedule's next entry sets.</description>
+		<category>Temperature</category>
+		<tags>
+			<tag>Setpoint</tag>
+			<tag>Temperature</tag>
+		</tags>
+		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
 </thing:thing-descriptions>

@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 @Component(service = DiscoveryService.class, configurationPid = "discovery.atagone")
 public class AtagOneDiscoveryService extends AbstractDiscoveryService {
 
-    private static final String REPRESENTATION_PROPERTY = "deviceId";
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES = Set.of(THING_TYPE_THERMOSTAT);
 
     private static final int DISCOVERY_PORT = 11000;
@@ -194,11 +193,11 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
         ThingUID uid = new ThingUID(THING_TYPE_THERMOSTAT, thingId);
 
         Map<String, Object> properties = new HashMap<>();
-        properties.put(REPRESENTATION_PROPERTY, deviceId);
+        properties.put(PROPERTY_DEVICE_ID, deviceId);
         // Pre-populate hostname so the user doesn't have to type it when accepting from Inbox.
         properties.put("hostname", host);
 
-        DiscoveryResult result = DiscoveryResultBuilder.create(uid).withRepresentationProperty(REPRESENTATION_PROPERTY)
+        DiscoveryResult result = DiscoveryResultBuilder.create(uid).withRepresentationProperty(PROPERTY_DEVICE_ID)
                 .withProperties(properties).withLabel("ATAG ONE Thermostat (" + host + ")").build();
 
         thingDiscovered(result);

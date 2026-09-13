@@ -13,7 +13,11 @@
 package org.openhab.binding.atagone.internal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.openhab.binding.atagone.internal.AtagOneBindingConstants.*;
 
 import java.io.IOException;
@@ -21,6 +25,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,6 +42,7 @@ import org.openhab.binding.atagone.internal.dto.DeviceConfigDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
 import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
+import org.openhab.core.library.types.DateTimeType;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
@@ -74,7 +80,7 @@ class AtagOneHandlerTest {
     @BeforeEach
     void setUp() {
         lenient().when(thing.getUID()).thenReturn(new ThingUID(THING_TYPE_THERMOSTAT, "test"));
-        handler = new AtagOneHandler(thing, httpClient);
+        handler = new AtagOneHandler(thing, httpClient, new AtagOneStateDescriptionProvider());
     }
 
     /** Directly seeds the handler's private stateMap, simulating a previously-polled channel value. */
@@ -172,6 +178,121 @@ class AtagOneHandlerTest {
         Method method = AtagOneHandler.class.getDeclaredMethod("updateChannels", RetrieveReplyDTO.class);
         method.setAccessible(true);
         method.invoke(handler, reply);
+    }
+
+    /** Reads a channel's last-published state directly from the handler's private stateMap. */
+    @SuppressWarnings("unchecked")
+    private State readState(String channelId) throws ReflectiveOperationException {
+        Field field = AtagOneHandler.class.getDeclaredField("stateMap");
+        field.setAccessible(true);
+        Map<String, State> stateMap = (Map<String, State>) Objects.requireNonNull(field.get(handler));
+        return Objects.requireNonNull(stateMap.get(channelId));
+    }
+
+    @Test
+    void deltaTemperatureIsFlowMinusReturn() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+
+        invokeUpdateChannels(reply);
+
+        QuantityType<?> delta = (QuantityType<?>) readState(CHANNEL_DELTA_TEMPERATURE);
+        assertEquals(reply.report.ch_water_temp - reply.report.ch_return_temp, delta.doubleValue(), 0.001);
+    }
+
+    @Test
+    void chAndDhwActiveDecodeDisjointBoilerStatusBits() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        // Fixture boiler_status = 268 = 0x10C: FLAME (0x100) + BURNER_ON (0x008) + CH_ACTIVE (0x004),
+        // DHW_ACTIVE (0x010) not set.
+        assertEquals(268, reply.report.boiler_status);
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(OnOffType.ON, readState(CHANNEL_CH_ACTIVE));
+        assertEquals(OnOffType.OFF, readState(CHANNEL_DHW_ACTIVE));
+    }
+
+    @Test
+    void dhwWaterPressureIsReadFromReportBlock() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+
+        invokeUpdateChannels(reply);
+
+        QuantityType<?> pressure = (QuantityType<?>) readState(CHANNEL_DHW_WATER_PRESSURE);
+        assertEquals(reply.report.dhw_water_pres, pressure.doubleValue(), 0.001);
+    }
+
+    @Test
+    void weatherTemperatureIsReadFromControlBlock() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+
+        invokeUpdateChannels(reply);
+
+        QuantityType<?> weatherTemp = (QuantityType<?>) readState(CHANNEL_WEATHER_TEMPERATURE);
+        assertEquals(reply.control.weather_temp, weatherTemp.doubleValue(), 0.001);
+    }
+
+    @Test
+    void regulationStateIsReadFromReportDetails() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        assertEquals(1, reply.report.details.regulation_state);
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(OnOffType.ON, readState(CHANNEL_REGULATION_STATE));
+    }
+
+    @Test
+    void updateDevicePropertiesSetsIdentityFromDevice() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+
+        invokeUpdateChannels(reply);
+
+        verify(thing).setProperty(PROPERTY_DEVICE_ID, reply.status.device_id);
+        verify(thing).setProperty(Thing.PROPERTY_SERIAL_NUMBER, reply.configuration.boiler_id);
+        verify(thing).setProperty(Thing.PROPERTY_VENDOR, "ATAG");
+        // Fixture has no download_url, so no firmware version can be parsed from it.
+        verify(thing, never()).setProperty(eq(Thing.PROPERTY_FIRMWARE_VERSION), anyString());
+    }
+
+    @Test
+    void nextScheduleChannelsFindTodaysNextEntry() throws ReflectiveOperationException {
+        // Monday (entries[0]), one entry starting at 08:00 (480 min) and one at 20:00 (1200 min).
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 480, 600, 21.0 }, { 1200, 1320, 19.0 } };
+        for (int i = 1; i < 7; i++) {
+            entries[i] = new double[0][];
+        }
+        ZonedDateTime monday10am = ZonedDateTime.of(2026, 9, 14, 10, 0, 0, 0, ZonedDateTime.now().getZone());
+        assertEquals(java.time.DayOfWeek.MONDAY, monday10am.getDayOfWeek());
+
+        handler.updateNextScheduleChannels(entries, monday10am);
+
+        DateTimeType nextTime = (DateTimeType) readState(CHANNEL_NEXT_SCHEDULE_TIME);
+        assertEquals(monday10am.withHour(20).withMinute(0).withSecond(0).withNano(0).toInstant(),
+                nextTime.getInstant());
+        QuantityType<?> nextTemp = (QuantityType<?>) readState(CHANNEL_NEXT_SCHEDULE_TEMPERATURE);
+        assertEquals(19.0, nextTemp.doubleValue(), 0.001);
+    }
+
+    @Test
+    void nextScheduleChannelsFallForwardToNextDayWithEntries() throws ReflectiveOperationException {
+        // Monday has no more entries after "now"; Tuesday's first entry is the next change.
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 480, 600, 21.0 } };
+        entries[1] = new double[][] { { 420, 540, 20.0 } };
+        for (int i = 2; i < 7; i++) {
+            entries[i] = new double[0][];
+        }
+        ZonedDateTime mondayEvening = ZonedDateTime.of(2026, 9, 14, 22, 0, 0, 0, ZonedDateTime.now().getZone());
+
+        handler.updateNextScheduleChannels(entries, mondayEvening);
+
+        DateTimeType nextTime = (DateTimeType) readState(CHANNEL_NEXT_SCHEDULE_TIME);
+        assertEquals(mondayEvening.plusDays(1).withHour(7).withMinute(0).withSecond(0).withNano(0).toInstant(),
+                nextTime.getInstant());
+        QuantityType<?> nextTemp = (QuantityType<?>) readState(CHANNEL_NEXT_SCHEDULE_TEMPERATURE);
+        assertEquals(20.0, nextTemp.doubleValue(), 0.001);
     }
 
     @Test
@@ -300,6 +421,34 @@ class AtagOneHandlerTest {
     }
 
     @Test
+    void vacationTemperatureWriteBundlesFullConfiguration() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_VACATION_TEMPERATURE,
+                new org.openhab.core.library.types.QuantityType<>(13.0, SIUnits.CELSIUS), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(13.0, Objects.requireNonNull(configUpdate.ch_vacation_temp), 0.001);
+        // Every configuration write must bundle the other confirmed fields alongside the changed one
+        // (see fillConfigBundle()) — this one was previously missing the call.
+        assertEquals(5, configUpdate.ch_heating_type);
+    }
+
+    @Test
+    void vacationTemperatureWriteRejectedWithoutPriorPoll() {
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_VACATION_TEMPERATURE,
+                new org.openhab.core.library.types.QuantityType<>(13.0, SIUnits.CELSIUS), control, configUpdate);
+
+        assertFalse(accepted);
+        assertNull(configUpdate.ch_vacation_temp);
+    }
+
+    @Test
     void leavingHolidayModeClearsVacationSchedule() throws ReflectiveOperationException {
         seedState(CHANNEL_PRESET_MODE, new StringType("holiday"));
         ControlUpdateDTO control = new ControlUpdateDTO();
@@ -365,14 +514,26 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void extendDurationRejectsNonWholeHour() {
+    void extendDurationAcceptsFifteenMinuteIncrement() {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        // A non-whole-hour value doesn't fail safely on the device — it triggers the same
-        // physical-confirmation/reboot pathway as a real cancel.
         boolean accepted = handler.buildControlUpdate(CHANNEL_EXTEND_DURATION,
                 new org.openhab.core.library.types.QuantityType<>(1800, Units.SECOND), control, configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(1800L, control.extend_duration);
+    }
+
+    @Test
+    void extendDurationRejectsNonFifteenMinuteIncrement() {
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        // A value that isn't a whole 15-minute increment doesn't fail safely on the device — it
+        // triggers the same physical-confirmation/reboot pathway as a real cancel.
+        boolean accepted = handler.buildControlUpdate(CHANNEL_EXTEND_DURATION,
+                new org.openhab.core.library.types.QuantityType<>(1000, Units.SECOND), control, configUpdate);
 
         assertFalse(accepted);
         assertNull(control.extend_duration);
@@ -463,7 +624,7 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void dhwTargetTemperatureWriteResendsEntriesUnchanged() throws ReflectiveOperationException {
+    void dhwScheduleBaseTemperatureWriteResendsEntriesUnchanged() throws ReflectiveOperationException {
         double[][][] entries = { { { 0, 360, 45.0 }, { 360, 1260, 50.0 }, { 1260, 1440, 45.0 } } };
         seedLastDhwScheduleEntries(entries);
 
@@ -476,7 +637,7 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void dhwTargetTemperatureWriteRejectedWithoutPriorPoll() {
+    void dhwScheduleBaseTemperatureWriteRejectedWithoutPriorPoll() {
         ScheduleDTO schedule = handler
                 .composeDhwScheduleUpdate(new org.openhab.core.library.types.QuantityType<>(48.0, SIUnits.CELSIUS));
 
@@ -484,7 +645,7 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void dhwTargetTemperatureWriteRejectsNonQuantityCommand() throws ReflectiveOperationException {
+    void dhwScheduleBaseTemperatureWriteRejectsNonQuantityCommand() throws ReflectiveOperationException {
         seedLastDhwScheduleEntries(new double[][][] { { { 0, 1440, 50.0 } } });
 
         ScheduleDTO schedule = handler.composeDhwScheduleUpdate(new StringType("48"));
@@ -508,8 +669,8 @@ class AtagOneHandlerTest {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("weather"), control,
-                configUpdate);
+        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("weather-dependent"),
+                control, configUpdate);
 
         assertTrue(accepted);
         assertEquals(CH_CONTROL_MODE_WEATHER, control.ch_control_mode);
@@ -539,7 +700,7 @@ class AtagOneHandlerTest {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("room"), control,
+        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("thermostat"), control,
                 configUpdate);
 
         assertFalse(accepted);
@@ -668,7 +829,7 @@ class AtagOneHandlerTest {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("indoor"), control,
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("inside"), control,
                 configUpdate);
 
         assertFalse(accepted);
@@ -680,7 +841,7 @@ class AtagOneHandlerTest {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("indoor"), control,
+        boolean accepted = handler.buildControlUpdate(CHANNEL_FROST_PROTECTION, new StringType("inside"), control,
                 configUpdate);
 
         assertTrue(accepted);
@@ -765,12 +926,13 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void isolationWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
+    void insulationWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
         seedLastConfiguration(sampleConfiguration());
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_ISOLATION, new StringType("good"), control, configUpdate);
+        boolean accepted = handler.buildControlUpdate(CHANNEL_INSULATION, new StringType("good"), control,
+                configUpdate);
 
         assertTrue(accepted);
         assertEquals(3, configUpdate.ch_isolation);
@@ -795,8 +957,8 @@ class AtagOneHandlerTest {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_WDR_TEMPERATURE_INFLUENCE,
-                new StringType("room-regulation"), control, configUpdate);
+        boolean accepted = handler.buildControlUpdate(CHANNEL_WDR_TEMPERATURE_INFLUENCE, new StringType("room-control"),
+                control, configUpdate);
 
         assertTrue(accepted);
         assertEquals(4, configUpdate.wdr_temps_influence);
@@ -816,16 +978,15 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void maxPreheatWriteConvertsToMinutes() throws ReflectiveOperationException {
+    void maxPreheatWriteMapsNameToDeviceValue() throws ReflectiveOperationException {
         seedLastConfiguration(sampleConfiguration());
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_MAX_PREHEAT, new QuantityType<>(30, Units.MINUTE),
-                control, configUpdate);
+        boolean accepted = handler.buildControlUpdate(CHANNEL_MAX_PREHEAT, new StringType("2h"), control, configUpdate);
 
         assertTrue(accepted);
-        assertEquals(30, configUpdate.max_preheat);
+        assertEquals(120, configUpdate.max_preheat);
     }
 
     @Test

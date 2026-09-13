@@ -30,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openhab.binding.atagone.internal.AtagOneHandler;
+import org.openhab.binding.atagone.internal.AtagOneStateDescriptionProvider;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.core.library.types.StringType;
@@ -56,7 +57,7 @@ class AtagOneActionsTest {
 
     @BeforeEach
     void setUp() {
-        handler = spy(new AtagOneHandler(thing, httpClient));
+        handler = spy(new AtagOneHandler(thing, httpClient, new AtagOneStateDescriptionProvider()));
         lenient().doNothing().when(handler).sendComposedUpdate(anyString(), any(), any());
         actions = new AtagOneActions();
         actions.setThingHandler(handler);
@@ -150,8 +151,15 @@ class AtagOneActionsTest {
     }
 
     @Test
-    void activateExtendRejectsNonWholeHour() {
-        actions.activateExtend(1800); // 30 minutes — not a whole hour
+    void activateExtendAcceptsFifteenMinuteIncrement() {
+        actions.activateExtend(1800); // 30 minutes — a whole 15-minute increment
+
+        verify(handler).sendComposedUpdate(anyString(), any(), any());
+    }
+
+    @Test
+    void activateExtendRejectsNonFifteenMinuteIncrement() {
+        actions.activateExtend(1000); // not a whole 15-minute increment
 
         verify(handler, never()).sendComposedUpdate(anyString(), any(), any());
     }

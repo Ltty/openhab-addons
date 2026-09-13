@@ -97,7 +97,7 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_SUMMER_ECO_MODE = "heating#summer-eco-mode";
     public static final String CHANNEL_SUMMER_ECO_TEMPERATURE = "heating#summer-eco-temperature";
     public static final String CHANNEL_HEATING_TYPE = "heating#heating-type";
-    public static final String CHANNEL_ISOLATION = "heating#isolation";
+    public static final String CHANNEL_INSULATION = "heating#insulation";
     public static final String CHANNEL_BUILDING_SIZE = "heating#building-size";
     public static final String CHANNEL_WDR_TEMPERATURE_INFLUENCE = "heating#wdr-temperature-influence";
     public static final String CHANNEL_CLIMATE_ZONE = "heating#climate-zone";
@@ -111,8 +111,23 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_TIME_ZONE = "device#time-zone";
     public static final String CHANNEL_LANGUAGE = "device#language";
 
+    // Exposure reconciliation channels (Phase I) — values the portal shows that were missing.
+    public static final String CHANNEL_DELTA_TEMPERATURE = "heating#delta-temperature";
+    public static final String CHANNEL_CH_ACTIVE = "heating#central-heating-active";
+    public static final String CHANNEL_DHW_ACTIVE = "hotwater#hot-water-active";
+    public static final String CHANNEL_DHW_WATER_PRESSURE = "hotwater#water-pressure";
+    public static final String CHANNEL_WEATHER_TEMPERATURE = "heating#weather-temperature";
+    public static final String CHANNEL_REGULATION_STATE = "heating#regulation-state";
+    public static final String CHANNEL_NEXT_SCHEDULE_TIME = "control#next-schedule-time";
+    public static final String CHANNEL_NEXT_SCHEDULE_TEMPERATURE = "control#next-schedule-temperature";
+
     // Thing property key for the persisted client identifier
     public static final String PROPERTY_CLIENT_ID = "clientId";
+    // Thing property key for the device's own identifier — also the representation-property, shared
+    // with the discovery service so a manually-added Thing and a discovered one populate it the same way.
+    public static final String PROPERTY_DEVICE_ID = "deviceId";
+    public static final String PROPERTY_BOILER_DETECT_TYPE = "boilerDetectType";
+    public static final String PROPERTY_INSTALLER_ID = "installerId";
 
     // ── Protocol enum constants ───────────────────────────────────────────────
 
@@ -142,11 +157,11 @@ public class AtagOneBindingConstants {
     public static final Map<String, Integer> CH_MODE_BY_NAME = Map.of("manual", CH_MODE_MANUAL, "auto", CH_MODE_AUTO,
             "holiday", CH_MODE_HOLIDAY, "extend", CH_MODE_EXTEND, "fireplace", CH_MODE_FIREPLACE);
 
-    public static final Map<Integer, String> CH_CONTROL_MODE_NAMES = Map.of(CH_CONTROL_MODE_ROOM, "room",
-            CH_CONTROL_MODE_WEATHER, "weather");
+    public static final Map<Integer, String> CH_CONTROL_MODE_NAMES = Map.of(CH_CONTROL_MODE_ROOM, "thermostat",
+            CH_CONTROL_MODE_WEATHER, "weather-dependent");
 
-    public static final Map<String, Integer> CH_CONTROL_MODE_BY_NAME = Map.of("room", CH_CONTROL_MODE_ROOM, "weather",
-            CH_CONTROL_MODE_WEATHER);
+    public static final Map<String, Integer> CH_CONTROL_MODE_BY_NAME = Map.of("thermostat", CH_CONTROL_MODE_ROOM,
+            "weather-dependent", CH_CONTROL_MODE_WEATHER);
 
     public static final Map<Integer, String> WEATHER_STATUS_NAMES = Map.ofEntries(Map.entry(0, "sunny"),
             Map.entry(1, "clear"), Map.entry(2, "rainy"), Map.entry(3, "snowy"), Map.entry(4, "hail"),
@@ -156,9 +171,9 @@ public class AtagOneBindingConstants {
 
     // ── Settings-channel enum constants (Phase F) ───────────────────────────────
 
-    public static final Map<Integer, String> FROST_PROTECTION_NAMES = Map.of(0, "off", 1, "outdoor", 2, "indoor", 3,
+    public static final Map<Integer, String> FROST_PROTECTION_NAMES = Map.of(0, "off", 1, "outside", 2, "inside", 3,
             "both");
-    public static final Map<String, Integer> FROST_PROTECTION_BY_NAME = Map.of("off", 0, "outdoor", 1, "indoor", 2,
+    public static final Map<String, Integer> FROST_PROTECTION_BY_NAME = Map.of("off", 0, "outside", 1, "inside", 2,
             "both", 3);
 
     public static final Map<Integer, String> HEATING_TYPE_NAMES = Map.of(1, "air-heating", 2, "convector", 3,
@@ -166,16 +181,22 @@ public class AtagOneBindingConstants {
     public static final Map<String, Integer> HEATING_TYPE_BY_NAME = Map.of("air-heating", 1, "convector", 2, "radiator",
             3, "radiator-underfloor", 4, "underfloor", 5, "underfloor-radiator", 6);
 
-    public static final Map<Integer, String> ISOLATION_NAMES = Map.of(1, "poor", 2, "average", 3, "good");
-    public static final Map<String, Integer> ISOLATION_BY_NAME = Map.of("poor", 1, "average", 2, "good", 3);
+    public static final Map<Integer, String> INSULATION_NAMES = Map.of(1, "poor", 2, "average", 3, "good");
+    public static final Map<String, Integer> INSULATION_BY_NAME = Map.of("poor", 1, "average", 2, "good", 3);
 
     public static final Map<Integer, String> BUILDING_SIZE_NAMES = Map.of(1, "small", 2, "medium", 3, "large");
     public static final Map<String, Integer> BUILDING_SIZE_BY_NAME = Map.of("small", 1, "medium", 2, "large", 3);
 
-    public static final Map<Integer, String> WDR_TEMPERATURE_INFLUENCE_NAMES = Map.of(0, "off", 1, "less", 2, "average",
-            3, "more", 4, "room-regulation");
-    public static final Map<String, Integer> WDR_TEMPERATURE_INFLUENCE_BY_NAME = Map.of("off", 0, "less", 1, "average",
-            2, "more", 3, "room-regulation", 4);
+    public static final Map<Integer, String> WDR_TEMPERATURE_INFLUENCE_NAMES = Map.of(0, "off", 1, "less", 2, "medium",
+            3, "more", 4, "room-control");
+    public static final Map<String, Integer> WDR_TEMPERATURE_INFLUENCE_BY_NAME = Map.of("off", 0, "less", 1, "medium",
+            2, "more", 3, "room-control", 4);
+
+    /** Verified live 2026-09-13: Off/1h/2h/3h/Automatic map to 0/60/120/180/1440 minutes. */
+    public static final Map<Integer, String> MAX_PREHEAT_NAMES = Map.of(0, "off", 60, "1h", 120, "2h", 180, "3h", 1440,
+            "automatic");
+    public static final Map<String, Integer> MAX_PREHEAT_BY_NAME = Map.of("off", 0, "1h", 60, "2h", 120, "3h", 180,
+            "automatic", 1440);
 
     public static final Map<Integer, String> WEEKDAY_NAMES = Map.ofEntries(Map.entry(1, "monday"),
             Map.entry(2, "tuesday"), Map.entry(3, "wednesday"), Map.entry(4, "thursday"), Map.entry(5, "friday"),

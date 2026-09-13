@@ -14,9 +14,11 @@ package org.openhab.binding.atagone.internal;
 
 import static org.openhab.binding.atagone.internal.AtagOneBindingConstants.*;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,6 +56,8 @@ import org.openhab.core.thing.binding.ThingHandlerService;
 import org.openhab.core.types.Command;
 import org.openhab.core.types.RefreshType;
 import org.openhab.core.types.State;
+import org.openhab.core.types.StateDescription;
+import org.openhab.core.types.StateDescriptionFragmentBuilder;
 import org.openhab.core.types.UnDefType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,6 +85,8 @@ public class AtagOneHandler extends BaseThingHandler {
      */
     public static final long SECONDS_PER_HOUR = 3600L;
     public static final long SECONDS_PER_DAY = 86400L;
+    /** Extend duration steps in 15-minute increments (manual: 15 min – 6 h), unlike the other two durations. */
+    public static final long SECONDS_PER_15_MINUTES = 900L;
 
     private final Logger logger = LoggerFactory.getLogger(AtagOneHandler.class);
     private final HttpClient httpClient;
@@ -147,9 +153,13 @@ public class AtagOneHandler extends BaseThingHandler {
     /** configuration from the last poll; needed to resend the full config bundle unchanged on write. */
     private volatile @Nullable DeviceConfigDTO lastConfiguration;
 
-    public AtagOneHandler(Thing thing, HttpClient httpClient) {
+    private final AtagOneStateDescriptionProvider stateDescriptionProvider;
+
+    public AtagOneHandler(Thing thing, HttpClient httpClient,
+            AtagOneStateDescriptionProvider stateDescriptionProvider) {
         super(thing);
         this.httpClient = httpClient;
+        this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
     @Override
@@ -226,7 +236,7 @@ public class AtagOneHandler extends BaseThingHandler {
             scheduler.execute(() -> sendChScheduleUpdate(client, schedule));
             return;
         }
-        if (CHANNEL_DHW_TARGET_TEMPERATURE.equals(channelId)) {
+        if (CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE.equals(channelId)) {
             ScheduleDTO schedule = composeDhwScheduleUpdate(command);
             if (schedule == null) {
                 logger.debug("Unhandled command {} for channel {}", command, channelId);
@@ -360,7 +370,7 @@ public class AtagOneHandler extends BaseThingHandler {
     }
 
     /**
-     * Composes a {@code hotwater#target-temperature} write.
+     * Composes a {@code hotwater#schedule-base-temperature} write.
      *
      * @return the schedule to send, or {@code null} if the command isn't a temperature or no
      *         schedule has been polled yet
@@ -506,7 +516,7 @@ public class AtagOneHandler extends BaseThingHandler {
             case CHANNEL_VACATION_TEMPERATURE:
                 if (command instanceof QuantityType<?> qt) {
                     QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
-                    if (celsius == null) {
+                    if (celsius == null || !fillConfigBundle(configDto)) {
                         return false;
                     }
                     configDto.ch_vacation_temp = celsius.doubleValue();
@@ -528,8 +538,9 @@ public class AtagOneHandler extends BaseThingHandler {
                     if (seconds == null || seconds.longValue() <= 0) {
                         return false;
                     }
-                    if (!isWholeUnits(seconds.longValue(), SECONDS_PER_HOUR)) {
-                        logger.warn("extend-duration must be a whole number of hours, got {} s", seconds.longValue());
+                    if (!isWholeUnits(seconds.longValue(), SECONDS_PER_15_MINUTES)) {
+                        logger.warn("extend-duration must be a whole number of 15-minute increments, got {} s",
+                                seconds.longValue());
                         return false;
                     }
                     /*
@@ -626,13 +637,13 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
-            case CHANNEL_ISOLATION:
+            case CHANNEL_INSULATION:
                 if (command instanceof StringType s) {
-                    Integer isolation = ISOLATION_BY_NAME.get(s.toString().toLowerCase());
-                    if (isolation == null || !fillConfigBundle(configDto)) {
+                    Integer insulation = INSULATION_BY_NAME.get(s.toString().toLowerCase());
+                    if (insulation == null || !fillConfigBundle(configDto)) {
                         return false;
                     }
-                    configDto.ch_isolation = isolation;
+                    configDto.ch_isolation = insulation;
                     return true;
                 }
                 return false;
@@ -671,12 +682,12 @@ public class AtagOneHandler extends BaseThingHandler {
                 return false;
 
             case CHANNEL_MAX_PREHEAT:
-                if (command instanceof QuantityType<?> qt) {
-                    QuantityType<?> minutes = qt.toUnit(Units.MINUTE);
+                if (command instanceof StringType s) {
+                    Integer minutes = MAX_PREHEAT_BY_NAME.get(s.toString().toLowerCase());
                     if (minutes == null || !fillConfigBundle(configDto)) {
                         return false;
                     }
-                    configDto.max_preheat = minutes.intValue();
+                    configDto.max_preheat = minutes;
                     return true;
                 }
                 return false;
@@ -1072,13 +1083,17 @@ public class AtagOneHandler extends BaseThingHandler {
         // Tracked unconditionally, including 0 — see armedStartVacation's field comment.
         armedStartVacation = r.configuration.start_vacation;
         lastConfiguration = r.configuration;
+        updateDeviceProperties(r);
 
         // Report — temperatures
         updateIfChanged(CHANNEL_ROOM_TEMPERATURE, new QuantityType<>(r.report.room_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_OUTSIDE_TEMPERATURE, new QuantityType<>(r.report.outside_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_WATER_TEMPERATURE, new QuantityType<>(r.report.ch_water_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_RETURN_TEMPERATURE, new QuantityType<>(r.report.ch_return_temp, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_DELTA_TEMPERATURE,
+                new QuantityType<>(r.report.ch_water_temp - r.report.ch_return_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_WATER_PRESSURE, new QuantityType<>(r.report.ch_water_pres, Units.BAR));
+        updateIfChanged(CHANNEL_DHW_WATER_PRESSURE, new QuantityType<>(r.report.dhw_water_pres, Units.BAR));
         updateIfChanged(CHANNEL_CH_SETPOINT, new QuantityType<>(r.report.ch_setpoint, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_DHW_TEMPERATURE, new QuantityType<>(r.report.dhw_water_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_SHOWN_SET_TEMPERATURE, new QuantityType<>(r.report.shown_set_temp, SIUnits.CELSIUS));
@@ -1091,6 +1106,8 @@ public class AtagOneHandler extends BaseThingHandler {
         boolean dhwActive = (r.report.boiler_status & BOILER_STATUS_DHW_ACTIVE) != 0;
         updateIfChanged(CHANNEL_FLAME, OnOffType.from(flame));
         updateIfChanged(CHANNEL_BURNER_TARGET, new StringType(dhwActive ? "dhw" : chActive ? "ch" : "none"));
+        updateIfChanged(CHANNEL_CH_ACTIVE, OnOffType.from(chActive));
+        updateIfChanged(CHANNEL_DHW_ACTIVE, OnOffType.from(dhwActive));
         updateIfChanged(CHANNEL_MODULATION_LEVEL, new QuantityType<>(r.report.details.rel_mod_level, Units.PERCENT));
         updateIfChanged(CHANNEL_BURNING_HOURS, new QuantityType<>(r.report.burning_hours, Units.HOUR));
         updateIfChanged(CHANNEL_TIME_TO_TARGET, new QuantityType<>(r.report.ch_time_to_temp, Units.SECOND));
@@ -1122,6 +1139,7 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_MODULATION_MIN, new QuantityType<>(r.report.details.min_mod_level, Units.PERCENT));
         updateIfChanged(CHANNEL_MAX_BOILER_TEMPERATURE,
                 new QuantityType<>(r.report.details.max_boiler_temp, SIUnits.CELSIUS));
+        updateIfChanged(CHANNEL_REGULATION_STATE, OnOffType.from(r.report.details.regulation_state == 1));
         updateIfChanged(CHANNEL_REPORT_TIME, new DateTimeType(AtagEpoch.toZonedDateTime(r.report.report_time)));
 
         // Schedules — fallback setpoints outside any active entry
@@ -1131,11 +1149,12 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.dhw_schedule.base_temp, SIUnits.CELSIUS));
         lastDhwScheduleEntries = r.schedules.dhw_schedule.entries;
+        updateNextScheduleChannels(r.schedules.ch_schedule.entries, ZonedDateTime.now());
 
         // Control — setpoints and modes
         updateIfChanged(CHANNEL_TARGET_TEMPERATURE, new QuantityType<>(r.control.ch_mode_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_CONTROL_MODE,
-                new StringType(CH_CONTROL_MODE_NAMES.getOrDefault(r.control.ch_control_mode, "room")));
+                new StringType(CH_CONTROL_MODE_NAMES.getOrDefault(r.control.ch_control_mode, "thermostat")));
         updateIfChanged(CHANNEL_PRESET_MODE, new StringType(CH_MODE_NAMES.getOrDefault(r.control.ch_mode, "manual")));
         int modeForDuration = r.control.ch_mode;
         if (modeForDuration == CH_MODE_EXTEND || modeForDuration == CH_MODE_FIREPLACE
@@ -1145,6 +1164,7 @@ public class AtagOneHandler extends BaseThingHandler {
             updateIfChanged(CHANNEL_PRESET_MODE_DURATION, UnDefType.UNDEF);
         }
         updateIfChanged(CHANNEL_DHW_TARGET_TEMPERATURE, new QuantityType<>(r.control.dhw_temp_setp, SIUnits.CELSIUS));
+        updateDhwTargetTemperatureBounds(r.configuration.dhw_min_set, r.configuration.dhw_max_set);
         // control.dhw_mode is deliberately not exposed as a channel — no source documents its value
         // meanings and neither the app nor the cloud portal expose a setting for it (see DEVELOPERS.md).
         updateIfChanged(CHANNEL_EXTEND_DURATION, new QuantityType<>(r.control.extend_duration, Units.SECOND));
@@ -1159,6 +1179,7 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_VACATION_DURATION, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
         updateIfChanged(CHANNEL_WEATHER_STATUS,
                 new StringType(WEATHER_STATUS_NAMES.getOrDefault(r.control.weather_status, "unknown")));
+        updateIfChanged(CHANNEL_WEATHER_TEMPERATURE, new QuantityType<>(r.control.weather_temp, SIUnits.CELSIUS));
 
         // Vacation / extend / fireplace remaining duration
         int mode = r.control.ch_mode;
@@ -1176,12 +1197,16 @@ public class AtagOneHandler extends BaseThingHandler {
             updateIfChanged(CHANNEL_VACATION_START, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_END, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_REMAINING, UnDefType.UNDEF);
+            updateIfChanged(CHANNEL_VACATION_TEMPERATURE,
+                    new QuantityType<>(r.configuration.ch_vacation_temp, SIUnits.CELSIUS));
             updateIfChanged(CHANNEL_EXTEND_REMAINING, new QuantityType<>(r.control.ch_mode_duration, Units.SECOND));
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, UnDefType.UNDEF);
         } else if (mode == CH_MODE_FIREPLACE) {
             updateIfChanged(CHANNEL_VACATION_START, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_END, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_VACATION_REMAINING, UnDefType.UNDEF);
+            updateIfChanged(CHANNEL_VACATION_TEMPERATURE,
+                    new QuantityType<>(r.configuration.ch_vacation_temp, SIUnits.CELSIUS));
             updateIfChanged(CHANNEL_EXTEND_REMAINING, UnDefType.UNDEF);
             updateIfChanged(CHANNEL_FIREPLACE_REMAINING, new QuantityType<>(r.control.ch_mode_duration, Units.SECOND));
         } else {
@@ -1206,14 +1231,15 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_SUMMER_ECO_TEMPERATURE, new QuantityType<>(config.summer_eco_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_HEATING_TYPE,
                 new StringType(HEATING_TYPE_NAMES.getOrDefault(config.ch_heating_type, "unknown")));
-        updateIfChanged(CHANNEL_ISOLATION,
-                new StringType(ISOLATION_NAMES.getOrDefault(config.ch_isolation, "unknown")));
+        updateIfChanged(CHANNEL_INSULATION,
+                new StringType(INSULATION_NAMES.getOrDefault(config.ch_isolation, "unknown")));
         updateIfChanged(CHANNEL_BUILDING_SIZE,
                 new StringType(BUILDING_SIZE_NAMES.getOrDefault(config.ch_building_size, "unknown")));
         updateIfChanged(CHANNEL_WDR_TEMPERATURE_INFLUENCE,
                 new StringType(WDR_TEMPERATURE_INFLUENCE_NAMES.getOrDefault(config.wdr_temps_influence, "unknown")));
         updateIfChanged(CHANNEL_CLIMATE_ZONE, new QuantityType<>(config.climate_zone, SIUnits.CELSIUS));
-        updateIfChanged(CHANNEL_MAX_PREHEAT, new QuantityType<>(config.max_preheat, Units.MINUTE));
+        updateIfChanged(CHANNEL_MAX_PREHEAT,
+                new StringType(MAX_PREHEAT_NAMES.getOrDefault(config.max_preheat, "unknown")));
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION, OnOffType.from(config.dhw_legion_enabled == 1));
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_DAY,
                 new StringType(WEEKDAY_NAMES.getOrDefault(config.dhw_legion_day, "unknown")));
@@ -1248,6 +1274,91 @@ public class AtagOneHandler extends BaseThingHandler {
             return;
         }
         updateStatus(ThingStatus.OFFLINE, detail, reason);
+    }
+
+    // ── Next schedule entry ──────────────────────────────────────────────────
+
+    /**
+     * The next scheduled CH entry start, mirroring the portal's automatic-mode "next time target".
+     * This is the next {@code entries} start time/temperature, not every base_temp revert — a
+     * simpler model than the full gap-fallback timeline, chosen because it matches what the manual
+     * describes the portal as showing.
+     */
+    void updateNextScheduleChannels(double[][][] entries, ZonedDateTime now) {
+        int minutesNow = now.getHour() * 60 + now.getMinute();
+        for (int dayOffset = 0; dayOffset <= 7; dayOffset++) {
+            ZonedDateTime day = now.plusDays(dayOffset);
+            int weekdayIndex = day.getDayOfWeek().getValue() - 1; // entries[0] = Monday
+            if (weekdayIndex >= entries.length) {
+                continue;
+            }
+            double @Nullable [] nextEntry = null;
+            for (double[] entry : entries[weekdayIndex]) {
+                if (dayOffset == 0 && entry[0] <= minutesNow) {
+                    continue;
+                }
+                if (nextEntry == null || entry[0] < nextEntry[0]) {
+                    nextEntry = entry;
+                }
+            }
+            if (nextEntry != null) {
+                ZonedDateTime time = day.truncatedTo(ChronoUnit.DAYS).plusMinutes((long) nextEntry[0]);
+                updateIfChanged(CHANNEL_NEXT_SCHEDULE_TIME, new DateTimeType(time));
+                updateIfChanged(CHANNEL_NEXT_SCHEDULE_TEMPERATURE, new QuantityType<>(nextEntry[2], SIUnits.CELSIUS));
+                return;
+            }
+        }
+        updateIfChanged(CHANNEL_NEXT_SCHEDULE_TIME, UnDefType.UNDEF);
+        updateIfChanged(CHANNEL_NEXT_SCHEDULE_TEMPERATURE, UnDefType.UNDEF);
+    }
+
+    // ── Device properties ────────────────────────────────────────────────────
+
+    /**
+     * Static identity, not channels — matches the portal's Account → Devices screen. Also populates
+     * {@link AtagOneBindingConstants#PROPERTY_DEVICE_ID}, the representation property, for a
+     * manually-added Thing (a discovered one already gets it from the discovery service).
+     */
+    private void updateDeviceProperties(RetrieveReplyDTO r) {
+        if (!r.status.device_id.isEmpty()) {
+            updateProperty(PROPERTY_DEVICE_ID, r.status.device_id);
+        }
+        if (!r.configuration.boiler_id.isEmpty()) {
+            updateProperty(Thing.PROPERTY_SERIAL_NUMBER, r.configuration.boiler_id);
+        }
+        if (!r.configuration.installer_id.isEmpty()) {
+            updateProperty(PROPERTY_INSTALLER_ID, r.configuration.installer_id);
+        }
+        updateProperty(PROPERTY_BOILER_DETECT_TYPE, String.valueOf(r.configuration.boiler_det_type));
+        updateProperty(Thing.PROPERTY_VENDOR, "ATAG");
+        String firmwareVersion = parseFirmwareVersion(r.configuration.download_url);
+        if (firmwareVersion != null) {
+            updateProperty(Thing.PROPERTY_FIRMWARE_VERSION, firmwareVersion);
+        }
+    }
+
+    /**
+     * The DHW setpoint range depends on installation type (a combi boiler's factory range differs
+     * from a system boiler with a 3-port valve kit), so {@code dhw-target-temperature}'s bounds come
+     * from the device rather than a hardcoded value in thing-types.xml.
+     */
+    private void updateDhwTargetTemperatureBounds(double min, double max) {
+        ChannelUID channelUID = new ChannelUID(getThing().getUID(), CHANNEL_DHW_TARGET_TEMPERATURE);
+        StateDescription description = StateDescriptionFragmentBuilder.create().withMinimum(BigDecimal.valueOf(min))
+                .withMaximum(BigDecimal.valueOf(max)).withStep(BigDecimal.valueOf(0.5)).withPattern("%.1f %unit%")
+                .build().toStateDescription();
+        if (description != null) {
+            stateDescriptionProvider.setDescription(channelUID, description);
+        }
+    }
+
+    /** {@code download_url}'s last path segment is the firmware version, e.g. {@code …/R60} → {@code R60}. */
+    private static @Nullable String parseFirmwareVersion(String downloadUrl) {
+        int lastSlash = downloadUrl.lastIndexOf('/');
+        if (lastSlash < 0 || lastSlash == downloadUrl.length() - 1) {
+            return null;
+        }
+        return downloadUrl.substring(lastSlash + 1);
     }
 
     // ── Client ID lifecycle ───────────────────────────────────────────────────

@@ -37,10 +37,13 @@ import org.osgi.service.component.annotations.Reference;
 public class AtagOneHandlerFactory extends BaseThingHandlerFactory {
 
     private final HttpClient httpClient;
+    private final AtagOneStateDescriptionProvider stateDescriptionProvider;
 
     @Activate
-    public AtagOneHandlerFactory(final @Reference HttpClientFactory httpClientFactory) {
+    public AtagOneHandlerFactory(final @Reference HttpClientFactory httpClientFactory,
+            final @Reference AtagOneStateDescriptionProvider stateDescriptionProvider) {
         this.httpClient = httpClientFactory.getCommonHttpClient();
+        this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
     @Override
@@ -51,7 +54,7 @@ public class AtagOneHandlerFactory extends BaseThingHandlerFactory {
     @Override
     protected @Nullable ThingHandler createHandler(Thing thing) {
         if (THING_TYPE_THERMOSTAT.equals(thing.getThingTypeUID())) {
-            return new AtagOneHandler(thing, httpClient);
+            return new AtagOneHandler(thing, httpClient, stateDescriptionProvider);
         }
         return null;
     }
