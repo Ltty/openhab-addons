@@ -100,7 +100,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#return-temperature` | `Number:Temperature` | R | Heating Circuit Return Temperature (advanced) |
 | `heating#water-pressure` | `Number:Pressure` | R | CH circuit water pressure |
 | `heating#water-setpoint` | `Number:Temperature` | R | Boiler Target Water Temperature (advanced) |
-| `heating#control-mode` | `String` | R | `room` (room-sensor setpoint control) or `weather` (weather-compensated heating curve) — a system-level setting, independent of `preset-mode` (advanced) |
+| `heating#control-mode` | `String` | RW | `room` (room-sensor setpoint control) or `weather` (weather-compensated heating curve) — independent of `preset-mode` (advanced) |
 | `heating#flame` | `Switch` | R | Burner flame active |
 | `heating#burner-target` | `String` | R | `none`, `ch`, or `dhw` |
 | `heating#modulation-level` | `Number:Dimensionless` | R | Burner modulation level (%) |

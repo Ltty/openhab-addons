@@ -256,14 +256,14 @@
 	<channel-type id="ch-control-mode" advanced="true">
 		<item-type>String</item-type>
 		<label>Heating Control Type</label>
-		<description>Whether heating is controlled by the room sensor or by an outdoor-temperature-driven curve
-			(no room
-			setpoint). A system-level setting — change it on the thermostat itself, not here.</description>
+		<description>Whether heating is controlled by the room sensor or by an outdoor-temperature-driven curve (no room
+			setpoint).</description>
 		<category>HVAC</category>
 		<tags>
-			<tag>Status</tag>
+			<tag>Control</tag>
+			<tag>Mode</tag>
 		</tags>
-		<state readOnly="true">
+		<state>
 			<options>
 				<option value="room">Room</option>
 				<option value="weather">Weather</option>

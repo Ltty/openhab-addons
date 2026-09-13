@@ -137,6 +137,9 @@ public class AtagOneBindingConstants {
     public static final Map<Integer, String> CH_CONTROL_MODE_NAMES = Map.of(CH_CONTROL_MODE_ROOM, "room",
             CH_CONTROL_MODE_WEATHER, "weather");
 
+    public static final Map<String, Integer> CH_CONTROL_MODE_BY_NAME = Map.of("room", CH_CONTROL_MODE_ROOM, "weather",
+            CH_CONTROL_MODE_WEATHER);
+
     public static final Map<Integer, String> WEATHER_STATUS_NAMES = Map.ofEntries(Map.entry(0, "sunny"),
             Map.entry(1, "clear"), Map.entry(2, "rainy"), Map.entry(3, "snowy"), Map.entry(4, "hail"),
             Map.entry(5, "windy"), Map.entry(6, "fog"), Map.entry(7, "cloudy"), Map.entry(8, "partly-sunny"),

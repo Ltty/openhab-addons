@@ -34,6 +34,7 @@ import org.openhab.binding.atagone.internal.api.AtagEpoch;
 import org.openhab.binding.atagone.internal.api.AtagOneApiClient;
 import org.openhab.binding.atagone.internal.api.AtagOneCommunicationException;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
+import org.openhab.binding.atagone.internal.dto.DeviceConfigDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
 import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
@@ -142,6 +143,9 @@ public class AtagOneHandler extends BaseThingHandler {
 
     /** dhw_schedule.entries from the last poll; needed to resend the schedule unchanged on write. */
     private volatile double @Nullable [][][] lastDhwScheduleEntries;
+
+    /** configuration from the last poll; needed to resend the full config bundle unchanged on write. */
+    private volatile @Nullable DeviceConfigDTO lastConfiguration;
 
     public AtagOneHandler(Thing thing, HttpClient httpClient) {
         super(thing);
@@ -427,12 +431,14 @@ public class AtagOneHandler extends BaseThingHandler {
                 return false;
 
             case CHANNEL_CH_CONTROL_MODE:
-                /*
-                 * Room-vs-weather control is a system/installer-level setting, not a routine runtime
-                 * toggle, and writing it via the local API has not been verified as safe. Kept
-                 * read-only until that changes.
-                 */
-                logger.warn("ch-control-mode is read-only; change room/weather control on the thermostat itself");
+                if (command instanceof StringType s) {
+                    Integer mode = CH_CONTROL_MODE_BY_NAME.get(s.toString().toLowerCase());
+                    if (mode == null) {
+                        logger.warn("Unknown ch-control-mode value '{}'; valid write values: room, weather", s);
+                        return false;
+                    }
+                    return composeChControlModeUpdate(mode, dto, configDto);
+                }
                 return false;
 
             case CHANNEL_VACATION_DURATION:
@@ -558,6 +564,52 @@ public class AtagOneHandler extends BaseThingHandler {
             default:
                 return false;
         }
+    }
+
+    // ── Config-bundle composition ────────────────────────────────────────────────
+
+    /**
+     * Composes a {@code heating#control-mode} write. Bundles every writable configuration field at
+     * its current value alongside the one being changed ({@code control.ch_control_mode}) — see
+     * DEVELOPERS.md's write semantics for why the device rejects a lightly-bundled write.
+     *
+     * @return {@code true} if composed, {@code false} if no prior poll has captured the current
+     *         configuration yet
+     */
+    boolean composeChControlModeUpdate(int controlMode, ControlUpdateDTO dto, DeviceConfigUpdateDTO configDto) {
+        if (!fillConfigBundle(configDto)) {
+            return false;
+        }
+        dto.ch_control_mode = controlMode;
+        return true;
+    }
+
+    /** Fills every field in the shared configuration write bundle from the last polled configuration. */
+    private boolean fillConfigBundle(DeviceConfigUpdateDTO configDto) {
+        DeviceConfigDTO config = lastConfiguration;
+        if (config == null) {
+            return false;
+        }
+        configDto.ch_heating_type = config.ch_heating_type;
+        configDto.ch_isolation = config.ch_isolation;
+        configDto.ch_building_size = config.ch_building_size;
+        configDto.wdr_temps_influence = config.wdr_temps_influence;
+        configDto.climate_zone = config.climate_zone;
+        configDto.wd_temp_offs = config.wd_temp_offs;
+        configDto.summer_eco_mode = config.summer_eco_mode;
+        configDto.summer_eco_temp = config.summer_eco_temp;
+        configDto.frost_prot_enabled = config.frost_prot_enabled;
+        configDto.frost_prot_temp_room = config.frost_prot_temp_room;
+        configDto.frost_prot_temp_outs = config.frost_prot_temp_outs;
+        configDto.max_preheat = config.max_preheat;
+        configDto.ch_vacation_temp = config.ch_vacation_temp;
+        configDto.ch_mode_vacation = config.ch_mode_vacation;
+        configDto.ch_mode_extend = config.ch_mode_extend;
+        configDto.time_zone = config.time_zone;
+        configDto.dhw_legion_enabled = config.dhw_legion_enabled;
+        configDto.dhw_legion_day = config.dhw_legion_day;
+        configDto.dhw_legion_time = config.dhw_legion_time;
+        return true;
     }
 
     // ── Mode-activation composition ─────────────────────────────────────────────
@@ -834,6 +886,7 @@ public class AtagOneHandler extends BaseThingHandler {
         }
         // Tracked unconditionally, including 0 — see armedStartVacation's field comment.
         armedStartVacation = r.configuration.start_vacation;
+        lastConfiguration = r.configuration;
 
         // Report — temperatures
         updateIfChanged(CHANNEL_ROOM_TEMPERATURE, new QuantityType<>(r.report.room_temp, SIUnits.CELSIUS));

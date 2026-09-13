@@ -494,7 +494,8 @@ context, not current fact.
 as part of the full ~19-field configuration bundle matching the cloud portal's `/Device/EditDevice`
 form shape (every writable `configuration` field above, resent at its current value, alongside the
 changed `ch_control_mode`). VERIFIED working in both directions (room→weather and weather→room) via
-this exact shape.
+this exact shape. **Implemented (Phase E, 2026-09-13)**: `heating#control-mode` is writable, composing
+the bundle from the last polled configuration via `AtagOneHandler.fillConfigBundle()`.
 
 ## Writability policy
 

@@ -33,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openhab.binding.atagone.internal.dto.ControlUpdateDTO;
+import org.openhab.binding.atagone.internal.dto.DeviceConfigDTO;
 import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
 import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
@@ -103,6 +104,38 @@ class AtagOneHandlerTest {
         Field field = AtagOneHandler.class.getDeclaredField("armedStartVacation");
         field.setAccessible(true);
         field.set(handler, epochOffset);
+    }
+
+    /** Directly sets the last-polled configuration, simulating a prior poll. */
+    private void seedLastConfiguration(DeviceConfigDTO config) throws ReflectiveOperationException {
+        Field field = AtagOneHandler.class.getDeclaredField("lastConfiguration");
+        field.setAccessible(true);
+        field.set(handler, config);
+    }
+
+    /** A representative configuration block, matching values from a real device capture. */
+    private DeviceConfigDTO sampleConfiguration() {
+        DeviceConfigDTO config = new DeviceConfigDTO();
+        config.ch_heating_type = 5;
+        config.ch_isolation = 3;
+        config.ch_building_size = 2;
+        config.wdr_temps_influence = 2;
+        config.climate_zone = -10.0;
+        config.wd_temp_offs = 0.0;
+        config.summer_eco_mode = 0;
+        config.summer_eco_temp = 18.5;
+        config.frost_prot_enabled = 0;
+        config.frost_prot_temp_room = 4.0;
+        config.frost_prot_temp_outs = 0.0;
+        config.max_preheat = 1440;
+        config.ch_vacation_temp = 14.0;
+        config.ch_mode_vacation = 604800L;
+        config.ch_mode_extend = 3600L;
+        config.time_zone = 1;
+        config.dhw_legion_enabled = 1;
+        config.dhw_legion_day = 7;
+        config.dhw_legion_time = 420;
+        return config;
     }
 
     /** Directly sets the last-polled ch_schedule.entries, simulating a prior poll. */
@@ -469,11 +502,56 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void chControlModeChannelIsReadOnly() {
+    void chControlModeWriteBundlesFullConfiguration() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("weather"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(CH_CONTROL_MODE_WEATHER, control.ch_control_mode);
+        assertEquals(5, configUpdate.ch_heating_type);
+        assertEquals(3, configUpdate.ch_isolation);
+        assertEquals(2, configUpdate.ch_building_size);
+        assertEquals(2, configUpdate.wdr_temps_influence);
+        assertEquals(-10.0, Objects.requireNonNull(configUpdate.climate_zone), 0.001);
+        assertEquals(0.0, Objects.requireNonNull(configUpdate.wd_temp_offs), 0.001);
+        assertEquals(0, configUpdate.summer_eco_mode);
+        assertEquals(18.5, Objects.requireNonNull(configUpdate.summer_eco_temp), 0.001);
+        assertEquals(0, configUpdate.frost_prot_enabled);
+        assertEquals(4.0, Objects.requireNonNull(configUpdate.frost_prot_temp_room), 0.001);
+        assertEquals(0.0, Objects.requireNonNull(configUpdate.frost_prot_temp_outs), 0.001);
+        assertEquals(1440, configUpdate.max_preheat);
+        assertEquals(14.0, Objects.requireNonNull(configUpdate.ch_vacation_temp), 0.001);
+        assertEquals(604800L, configUpdate.ch_mode_vacation);
+        assertEquals(3600L, configUpdate.ch_mode_extend);
+        assertEquals(1, configUpdate.time_zone);
+        assertEquals(1, configUpdate.dhw_legion_enabled);
+        assertEquals(7, configUpdate.dhw_legion_day);
+        assertEquals(420, configUpdate.dhw_legion_time);
+    }
+
+    @Test
+    void chControlModeWriteRejectedWithoutPriorPoll() {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
         boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("room"), control,
+                configUpdate);
+
+        assertFalse(accepted);
+        assertNull(control.ch_control_mode);
+    }
+
+    @Test
+    void chControlModeWriteRejectsUnknownValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_CH_CONTROL_MODE, new StringType("auto"), control,
                 configUpdate);
 
         assertFalse(accepted);
