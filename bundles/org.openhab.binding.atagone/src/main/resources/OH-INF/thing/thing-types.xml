@@ -328,9 +328,9 @@
 	<channel-type id="vacation-duration">
 		<item-type unitHint="d">Number:Time</item-type>
 		<label>Vacation Duration</label>
-		<description>How long holiday mode runs for, in whole days. Setting this stores the duration for next
-			time — it does
-			not start holiday mode. Resets to 0 each time holiday mode ends.</description>
+		<description>How long holiday mode runs for. Setting this stores the duration for next time — it does
+			not start holiday
+			mode. Resets to 0 each time holiday mode ends.</description>
 		<category>Time</category>
 		<tags>
 			<tag>Control</tag>
@@ -381,22 +381,24 @@
 	<channel-type id="fireplace-duration">
 		<item-type unitHint="h">Number:Time</item-type>
 		<label>Fireplace Duration</label>
-		<description>How long fireplace mode runs for, in whole hours. Setting this stores the duration for
-			next time — it does
-			not start fireplace mode. Resets to 1 hour each time fireplace mode ends.
+		<description>How long fireplace mode runs for. Setting this stores the duration for next time — it does
+			not start
+			fireplace mode. Resets to 1 hour each time fireplace mode ends.
 			Ending fireplace mode requires a button
-			press on the thermostat display.</description>
+			press on the
+			thermostat display.</description>
 		<state pattern="%.0f %unit%" min="1" step="1"/>
 	</channel-type>
 
 	<channel-type id="extend-duration">
 		<item-type unitHint="h">Number:Time</item-type>
 		<label>Extend Duration</label>
-		<description>Extra time added on top of the remaining schedule when extend mode starts, in whole
-			hours — not a fixed
-			session length. Setting this stores the value for next time; it does not
+		<description>Extra time added on top of the remaining schedule when extend mode starts — not a fixed
+			session length.
+			Setting this stores the value for next time; it does not
 			start extend mode. Unlike holiday and
-			fireplace, this value is kept after extend mode ends.</description>
+			fireplace, this value is
+			kept after extend mode ends.</description>
 		<state pattern="%.0f %unit%" min="1" step="1"/>
 	</channel-type>
 

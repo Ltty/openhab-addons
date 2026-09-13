@@ -598,6 +598,6 @@ deliberately varied field.
    the binding disabled, send a burst of `/retrieve` calls at progressively shorter gaps (e.g. 2000 →
    1500 → 1000 → 500 ms) and find where empty replies start appearing consistently rather than
    intermittently. Confounded by the device's general flakiness (empty replies happen at any
-   interval), so look for a change in *rate*, not a hard cutoff.
+   interval), so look for a change in _rate_, not a hard cutoff.
 1. What is the write payload shape for `schedules`? (Not attempted; first task of schedule
    implementation.)
