@@ -308,14 +308,30 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void manualPresetModeIsRejected() {
+    void manualPresetModeReusesCurrentTargetTemperature() throws ReflectiveOperationException {
+        seedState(CHANNEL_TARGET_TEMPERATURE, new QuantityType<>(21.5, SIUnits.CELSIUS));
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
         boolean accepted = handler.buildControlUpdate(CHANNEL_PRESET_MODE, new StringType("manual"), control,
                 configUpdate);
 
-        assertFalse(accepted);
+        assertTrue(accepted);
+        assertEquals(CH_MODE_MANUAL, control.ch_mode);
+        assertEquals(21.5, Objects.requireNonNull(control.ch_mode_temp), 0.001);
+    }
+
+    @Test
+    void manualPresetModeWithNoStoredTargetTemperatureOmitsSetpoint() {
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_PRESET_MODE, new StringType("manual"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(CH_MODE_MANUAL, control.ch_mode);
+        assertNull(control.ch_mode_temp);
     }
 
     @Test
@@ -822,6 +838,26 @@ class AtagOneHandlerTest {
         QuantityType<?> asSeconds = ((QuantityType<?>) vacationDuration).toUnit(Units.SECOND);
         assertNotNull(asSeconds);
         assertEquals(5 * 86400L, asSeconds.longValue());
+    }
+
+    @Test
+    void durationChannelsPublishInTheirDocumentedUnit() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.control.vacation_duration = 3 * 86400L;
+        reply.control.extend_duration = 2 * 3600L;
+        reply.control.fireplace_duration = 5 * 3600L;
+
+        invokeUpdateChannels(reply);
+
+        QuantityType<?> vacation = (QuantityType<?>) readState(CHANNEL_VACATION_DURATION);
+        assertEquals(Units.DAY, vacation.getUnit());
+        assertEquals(3.0, vacation.doubleValue(), 0.001);
+        QuantityType<?> extend = (QuantityType<?>) readState(CHANNEL_EXTEND_DURATION);
+        assertEquals(Units.HOUR, extend.getUnit());
+        assertEquals(2.0, extend.doubleValue(), 0.001);
+        QuantityType<?> fireplace = (QuantityType<?>) readState(CHANNEL_FIREPLACE_DURATION);
+        assertEquals(Units.HOUR, fireplace.getUnit());
+        assertEquals(5.0, fireplace.doubleValue(), 0.001);
     }
 
     @Test

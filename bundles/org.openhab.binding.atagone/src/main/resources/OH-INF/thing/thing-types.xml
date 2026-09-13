@@ -301,10 +301,8 @@
 	<channel-type id="preset-mode">
 		<item-type>String</item-type>
 		<label>Preset Mode</label>
-		<description>The thermostat's active mode. Set to auto to follow the schedule, or to holiday, extend, or
-			fireplace to
-			start that mode using its currently configured duration. Manual can only be set on the
-			thermostat itself.</description>
+		<description>The thermostat's active mode. Set to auto to follow the schedule, holiday/extend/fireplace to start that
+			mode using its currently configured duration, or manual to hold the current target temperature.</description>
 		<category>HVAC</category>
 		<tags>
 			<tag>Control</tag>

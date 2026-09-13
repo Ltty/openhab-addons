@@ -444,7 +444,9 @@ public class AtagOneHandler extends BaseThingHandler {
                 if (command instanceof StringType s) {
                     Integer mode = CH_CONTROL_MODE_BY_NAME.get(s.toString().toLowerCase());
                     if (mode == null) {
-                        logger.warn("Unknown ch-control-mode value '{}'; valid write values: room, weather", s);
+                        logger.warn(
+                                "Unknown ch-control-mode value '{}'; valid write values: thermostat, weather-dependent",
+                                s);
                         return false;
                     }
                     return composeChControlModeUpdate(mode, dto, configDto);
@@ -479,21 +481,13 @@ public class AtagOneHandler extends BaseThingHandler {
                     Integer mode = CH_MODE_BY_NAME.get(modeName);
                     if (mode == null) {
                         logger.warn(
-                                "Unknown preset-mode value '{}'; valid write values: auto, holiday, extend, fireplace",
+                                "Unknown preset-mode value '{}'; valid write values: manual, auto, holiday, extend, fireplace",
                                 modeName);
                         return false;
                     }
-                    /*
-                     * ch_mode=1 (manual) is not writable via the local API — writing it is believed to
-                     * make the boiler restart its API subsystem. Manual is treated as a read-only
-                     * state, set by the device itself when the user adjusts the temperature on the
-                     * display. This is a conservative safety choice: the risk has not been thoroughly
-                     * re-verified, so rejection stays in place unless that changes.
-                     */
                     if (mode == CH_MODE_MANUAL) {
-                        logger.warn(
-                                "preset-mode=manual cannot be written via the API; send auto to cancel timed modes");
-                        return false;
+                        composeManualActivation(dto);
+                        return true;
                     }
                     if (mode == CH_MODE_EXTEND) {
                         composeExtendActivation(dto, null);
@@ -827,6 +821,22 @@ public class AtagOneHandler extends BaseThingHandler {
      * {@code ch_mode} and {@code extend_duration} affect the device; {@code ch_mode_duration} has no
      * effect on it.
      */
+    /**
+     * Composes a manual-mode activation, reusing whatever target temperature is currently in effect
+     * — matching the app's own behavior when switching to manual from another mode. Live-verified
+     * 2026-09-13 to apply cleanly with no restart, via a direct auto→manual round trip.
+     */
+    void composeManualActivation(ControlUpdateDTO dto) {
+        dto.ch_mode = CH_MODE_MANUAL;
+        State stored = stateMap.get(CHANNEL_TARGET_TEMPERATURE);
+        if (stored instanceof QuantityType<?> sq) {
+            QuantityType<?> celsius = sq.toUnit(SIUnits.CELSIUS);
+            if (celsius != null) {
+                dto.ch_mode_temp = celsius.doubleValue();
+            }
+        }
+    }
+
     public void composeExtendActivation(ControlUpdateDTO dto, @Nullable Long explicitDurationSeconds) {
         long durationSeconds;
         if (explicitDurationSeconds != null) {
@@ -1167,8 +1177,10 @@ public class AtagOneHandler extends BaseThingHandler {
         updateDhwTargetTemperatureBounds(r.configuration.dhw_min_set, r.configuration.dhw_max_set);
         // control.dhw_mode is deliberately not exposed as a channel — no source documents its value
         // meanings and neither the app nor the cloud portal expose a setting for it (see DEVELOPERS.md).
-        updateIfChanged(CHANNEL_EXTEND_DURATION, new QuantityType<>(r.control.extend_duration, Units.SECOND));
-        updateIfChanged(CHANNEL_FIREPLACE_DURATION, new QuantityType<>(r.control.fireplace_duration, Units.SECOND));
+        updateIfChanged(CHANNEL_EXTEND_DURATION,
+                new QuantityType<>(r.control.extend_duration / (double) SECONDS_PER_HOUR, Units.HOUR));
+        updateIfChanged(CHANNEL_FIREPLACE_DURATION,
+                new QuantityType<>(r.control.fireplace_duration / (double) SECONDS_PER_HOUR, Units.HOUR));
         /*
          * Read unconditionally, same as extend/fireplace above — not masked to UNDEF outside active
          * holiday mode. composeVacationActivation()'s stored-value fallback reads this same channel,
@@ -1176,7 +1188,8 @@ public class AtagOneHandler extends BaseThingHandler {
          * activation ever picks it up. control.vacation_duration resets to 0 on cancel, so reading it
          * raw already conveys "nothing pending" without needing a separate UNDEF state.
          */
-        updateIfChanged(CHANNEL_VACATION_DURATION, new QuantityType<>(r.control.vacation_duration, Units.SECOND));
+        updateIfChanged(CHANNEL_VACATION_DURATION,
+                new QuantityType<>(r.control.vacation_duration / (double) SECONDS_PER_DAY, Units.DAY));
         updateIfChanged(CHANNEL_WEATHER_STATUS,
                 new StringType(WEATHER_STATUS_NAMES.getOrDefault(r.control.weather_status, "unknown")));
         updateIfChanged(CHANNEL_WEATHER_TEMPERATURE, new QuantityType<>(r.control.weather_temp, SIUnits.CELSIUS));

@@ -191,11 +191,11 @@ device itself treats a duration field written alone.
 | Value | Description |
 |-------|-------------|
 | `auto` | Follow the programmed schedule. Also cancels whichever timed preset is currently active |
+| `manual` | Hold the current target temperature indefinitely, ignoring the schedule. Reuses whichever temperature `target-temperature` last reported |
 | `holiday` | Hold a fixed low temperature for the vacation period, using the currently stored `vacation-duration` (or the device's own configured default if none has been set) |
 | `fireplace` | Temporarily reduce setpoint (fireplace warmth compensation), using the currently stored `fireplace-duration` (or 1 hour if none has been set) |
 | `extend` | Temporarily extend the current schedule block, using the currently stored `extend-duration` as **additional** time on top of whatever's left until the device's next programmed schedule change — not an absolute session length |
 
-`manual` cannot be set directly via the API — it is set by the device when you adjust the temperature on the display.
 Writing an unknown value is rejected with a warning and the item reverts to its last known state.
 
 To activate a mode with a **custom** duration in a single write, instead of first writing the duration
