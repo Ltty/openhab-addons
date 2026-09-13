@@ -420,12 +420,26 @@ unrelated `configuration.dhw_legion_day` field, see the Gap analysis table above
 name sidesteps that ambiguity for anyone calling these actions rather than risking the two being
 confused.
 
-**Verification status: unit-tested only, not live-tested.** The compose logic (period replace/append/
-remove, bounds checking, unknown-weekday/no-prior-poll rejection, a null day-entries slot rejected
-gracefully rather than throwing) is covered by tests in `AtagOneHandlerTest` and `AtagOneActionsTest`.
-No live write has been attempted — the ~100 s unresponsiveness cost documented just above applies to
-every call, and per this project's live-device safety rule, that needs its own explicit approval before
-testing, separate from the code-only work done here.
+**Verification status: VERIFIED live, 2026-09-13.** The compose logic (period replace/append/remove,
+bounds checking, unknown-weekday/no-prior-poll rejection, a null day-entries slot rejected gracefully
+rather than throwing) is covered by tests in `AtagOneHandlerTest` and `AtagOneActionsTest`. Live-tested
+against the real device with explicit approval, both branches of the compose logic:
+
+- **Append** (`setChSchedulePeriod("monday", 2, 600, 615, 8.0)` — Monday had exactly 2 existing periods,
+  so index 2 appends): applied exactly (`acc_status:2`), verified via `/retrieve`, all other 6 days and
+  `base_temp` byte-for-byte unchanged, `resets` unchanged (6 throughout).
+- **Replace** (`setChSchedulePeriod("monday", 0, 0, 240, 9.0)` — index 0 already existed): applied
+  exactly, same unchanged-elsewhere and `resets`-unchanged result.
+- Both restored via the mirroring clear/re-set call; a final `/retrieve` matched the original baseline
+  exactly.
+- **Unresponsiveness confirmed but shorter than the earlier ~100 s observation**: each write was
+  followed by 10–40 s of empty `/update`/`/retrieve` replies (one write needed a retry before even
+  `acc_status:2` came back), always recovering on retry. Budget for it, but it was not the full 100 s
+  every time.
+- DHW's transport path (`updateDhwSchedule`) was not separately live-tested this round — it was already
+  VERIFIED in Phase D via the CH/DHW base_temp tests above, and `composeDhwSchedulePeriodSet/Clear` share
+  the exact same `composeSchedulePeriodChange()` logic just proven for CH, differing only in which
+  already-proven transport method they call.
 
 **Gap-fallback experiment (2026-09-13) — a false negative, now explained.** Opened a temporary
 15-minute partial intra-day gap in `dhw_schedule.entries` (all 7 days identically) with a distinctive
