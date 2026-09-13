@@ -189,7 +189,7 @@ unused. Candidate for exposure; see Gap analysis.
 | `boiler_status` | int (bitmask) | — | R | `heating#flame`, `heating#burner-target` (decoded), plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) | PARTIAL — see below |
 | `boiler_config` | int (bitmask) | — | R | — | UNKNOWN |
 | `ch_time_to_temp` | int | s | R | `heating#time-to-target` | VERIFIED |
-| `shown_set_temp` | double | °C | R | `heating#shown-set-temperature` | VERIFIED |
+| `shown_set_temp` | double | °C | R | — (removed, final-review sweep 2026-09-13 — every live sample matched `heating#target-temperature` exactly and no ATAG surface justified keeping a second channel for it) | VERIFIED, but redundant with `control.ch_mode_temp` in every case observed |
 | `power_cons` | int | ? | R | — (deliberately not exposed) | UNKNOWN unit — see below |
 | `tout_avg` | double | °C | R | `heating#average-outside-temperature` | VERIFIED |
 | `rssi` | int | dBm (negated) | R | `device#wifi-signal` | VERIFIED |
@@ -269,7 +269,7 @@ correctly, documented in full under Write semantics below.
 | `ch_status` | int (bitmask) | — | R | — | UNKNOWN |
 | `ch_control_mode` | int enum | — | **W** (bundle only — see below) | `heating#control-mode` | VERIFIED `0=thermostat, 1=weather-dependent` (values renamed from `room`/`weather`, Phase G, to match the app/manual) |
 | `ch_mode` | int enum | — | **W** | `control#preset-mode` | VERIFIED `1=manual, 2=auto, 3=holiday, 4=extend, 5=fireplace` — `manual` writable as of this session, see the Open questions resolution below |
-| `ch_mode_duration` | long | s | R for its value; **must be written as `0` to cancel any timed preset**, and **must be present (any value) to activate fireplace specifically** | `control#preset-mode-duration`, also `control#extend-remaining`/`control#fireplace-remaining` (mode-gated, same field — see Double-mapping inventory) | VERIFIED, mode-dependent meaning — see below |
+| `ch_mode_duration` | long | s | R for its value; **must be written as `0` to cancel any timed preset**, and **must be present (any value) to activate fireplace specifically** | `control#extend-remaining`/`control#fireplace-remaining` (mode-gated, same field — see Double-mapping inventory) | VERIFIED, mode-dependent meaning — see below |
 | `ch_mode_temp` | double | °C | **W** | `heating#target-temperature`, `control#vacation-temperature` (mode-dependent — see Double-mapping inventory) | VERIFIED |
 | `dhw_temp_setp` | double | °C | R | `hotwater#target-temperature`, read-only (Phase I: previously writable via a redirect to `schedules.dhw_schedule.base_temp`, which duplicated `hotwater#schedule-base-temperature`'s field — the write moved there instead, see the DHW read/write asymmetry note below) | Tracks whichever `schedules.dhw_schedule` entry/fallback is currently active |
 | `dhw_status` | int (bitmask) | — | R | — | UNKNOWN |
@@ -402,6 +402,30 @@ write, then an elevated empty-reply rate for a few minutes after that. Resembles
 `resets` did not increment. The prior `base_temp`-only writes never touched `entries` and apparently
 never hit this. Any future entries-write test should budget for this recovery window before trying to
 observe an effect inside a short gap.
+
+**Per-entry schedule editing (final-review sweep, 2026-09-13).** Implemented as four Thing Actions
+(`setChSchedulePeriod`/`clearChSchedulePeriod`/`setDhwSchedulePeriod`/`clearDhwSchedulePeriod`), not
+channels — a per-slot channel design (7 days × periods × fields) would have added 60+ channels, against
+the channel-surface-size concern already raised on the PR; Actions add zero. Each action is a thin
+wrapper: it reads the last-polled `entries` for that schedule, replaces/inserts/removes exactly one
+period in one weekday's array (`AtagOneHandler.composeSchedulePeriodChange()`), and resends the whole
+schedule object unchanged apart from that. It does **not** implement the write-composition rule above
+(omitting periods equal to `base_temp`) — that's a convention for matching the app's own construction,
+not a device requirement, and enforcing it here would silently second-guess a caller who deliberately
+wants an explicit entry at that temperature. Callers get exactly what they compose.
+
+Weekday is a name (`monday`..`sunday`), not a raw index — deliberately, because this device's protocol
+has two different, unrelated weekday numbering schemes (this array is 0-indexed from Monday; the
+unrelated `configuration.dhw_legion_day` field, see the Gap analysis table above, is 1-indexed) and a
+name sidesteps that ambiguity for anyone calling these actions rather than risking the two being
+confused.
+
+**Verification status: unit-tested only, not live-tested.** The compose logic (period replace/append/
+remove, bounds checking, unknown-weekday/no-prior-poll rejection, a null day-entries slot rejected
+gracefully rather than throwing) is covered by tests in `AtagOneHandlerTest` and `AtagOneActionsTest`.
+No live write has been attempted — the ~100 s unresponsiveness cost documented just above applies to
+every call, and per this project's live-device safety rule, that needs its own explicit approval before
+testing, separate from the code-only work done here.
 
 **Gap-fallback experiment (2026-09-13) — a false negative, now explained.** Opened a temporary
 15-minute partial intra-day gap in `dhw_schedule.entries` (all 7 days identically) with a distinctive
@@ -797,7 +821,7 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 
 | Field | Mapped to | Why this is fine |
 |---|---|---|
-| `control.ch_mode_duration` | `control#preset-mode-duration` + `control#extend-remaining` + `control#fireplace-remaining` | Mode-gated — only one of the three ever reads non-UNDEF at a time (see `updateChannels()`'s if/else-if chain on `ch_mode`). Same field, three differently-named views for discoverability per active mode |
+| `control.ch_mode_duration` | `control#extend-remaining` + `control#fireplace-remaining` | Mode-gated — only one of the two ever reads non-UNDEF at a time (see `updateChannels()`'s if/else-if chain on `ch_mode`). Same field, two differently-named views for discoverability per active mode. (A third view, `control#preset-mode-duration`, was removed in the final-review sweep — it was a literal duplicate of whichever of these two was active, with no distinct use case found.) |
 | `control.ch_mode_temp` | `heating#target-temperature` + `control#vacation-temperature` (during active holiday) | The device itself reuses this field as "whatever the currently active mode's live setpoint is" — reflecting that faithfully means both channels legitimately show it during holiday |
 | `report.boiler_status` | `heating#flame` (bit `0x100`) + `heating#burner-target` (bits `0x004`/`0x010`) + `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, same two bits again) | Disjoint bits of one bitmask, decoded into differently-shaped views (a single flame indicator, a prioritized "which one" string, and two independent booleans) — not redundant, each answers a different question |
 | `control.vacation_duration` | `control#vacation-duration` directly, plus a derivation input to `control#vacation-end`/`control#vacation-remaining` | One raw value feeding one direct channel and two computed ones — standard derivation, not duplication |
@@ -806,8 +830,10 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 
 ### Channels the ATAG portal doesn't show (decision: keep all, Phase I)
 
-The user supplied a full inventory of what the ATAG cloud portal's screens expose. 18 of the
-binding's 63 channels aren't in that list. Decision: keep all of them — most surface on the app's own
+The user supplied a full inventory of what the ATAG cloud portal's screens expose. 17 of the
+binding's 69 channels aren't in that list (was 18 of 63 at the time of this decision — the final-review
+sweep removed `heating#shown-set-temperature` and `control#preset-mode-duration`, and Phases G–J's own
+additions changed the totals too). Decision: keep the rest — most surface on the app's own
 _Diagnosis_ screen (manual p. 10: "shows more details of status and readings on the boiler") or the
 ONE controller's own SYSTEM DIAGNOSTICS menu (manual p. 46), neither of which the portal inventory
 covered; a few are genuinely binding-only diagnostics with no ATAG-side surface at all, called out
@@ -817,10 +843,10 @@ below.
 |---|---|
 | `device#voltage`, `device#wifi-signal`, `device#resets`, `device#memory-allocation`, `device#pcb-temperature` | Controller's own SYSTEM DIAGNOSTICS menu (manual p. 46) — hardware self-diagnostics, not user settings |
 | `heating#boiler-temperature`, `heating#boiler-return-temperature`, `heating#max-boiler-temperature`, `heating#modulation-level`, `heating#min-modulation-level` | App's _Diagnosis_ screen (manual p. 10) — boiler-side detail beyond the portal's summary view |
-| `heating#time-to-target`, `heating#shown-set-temperature` | No direct ATAG-side screen found; genuinely binding-only, kept as low-cost useful diagnostics with clear, unambiguous meaning |
+| `heating#time-to-target` | No direct ATAG-side screen found; genuinely binding-only, kept as a low-cost useful diagnostic with clear, unambiguous meaning |
 | `heating#weather-status` | Displayed as an icon on the ONE/app/portal front screen (manual pp. 5, 16), not as a named settings-screen field — the portal inventory's screen-by-screen list didn't capture front-screen icons |
 | `hotwater#flow-rate` | App's _Diagnosis_ screen |
-| `control#vacation-remaining`, `control#extend-remaining`, `control#fireplace-remaining` | Derived from `control#preset-mode-duration`'s underlying field, split out per mode for discoverability — see Double-mapping inventory above; the portal shows this as one countdown next to the active mode |
+| `control#vacation-remaining`, `control#extend-remaining`, `control#fireplace-remaining` | Split out per mode for discoverability — see Double-mapping inventory above; the portal shows this as one countdown next to the active mode |
 | `alerts#device-errors`, `alerts#boiler-errors` | Controller's own notification history (manual p. 26, "Notifications") and SUPPORT/DIAGNOSTICS menu, not a portal screen field |
 
 ## Resolved (2026-08-27) — no longer open
@@ -877,7 +903,10 @@ deliberately varied field.
    2026-09-13): `0/60/120/180/1440` = Off/1h/2h/3h/Automatic, matching the manual exactly. `time_zone`'s
    10-city order (Amsterdam, Berlin, Brussels, Dublin, Edinburgh, Frankfurt, London, Luxembourg, Paris,
    Rome) remains INFERRED — corroborated by both the app UI and the cloud form's dropdown order, but
-   neither source is a live device read at each individual non-Berlin setting.
+   neither source is a live device read at each individual non-Berlin setting. `TIME_ZONE_NAMES` now
+   maps all 10 (final-review sweep, 2026-09-13; previously only index 1 was mapped, so 9 of the 10 cases
+   this ordering already applied to displayed as "unknown"), still read-only per the reasoning in the
+   Gap analysis table above.
 1. What does `control.dhw_mode` (reads `1`) enumerate? Still UNKNOWN for this device, but Phase G's
    manual read gives it a **plausible, sourced hypothesis for the first time**: on a combi boiler, the
    DHW schedule switches between COMFORT and ECO mode, stored as `1` for COMFORT and (implicitly) ECO
