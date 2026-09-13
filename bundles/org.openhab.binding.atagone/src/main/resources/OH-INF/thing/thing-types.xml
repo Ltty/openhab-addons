@@ -33,7 +33,6 @@
 		<description>Active preset and timed modes (vacation, extend, fireplace).</description>
 		<channels>
 			<channel id="preset-mode" typeId="preset-mode"/>
-			<channel id="preset-mode-duration" typeId="preset-mode-duration"/>
 			<channel id="vacation-duration" typeId="vacation-duration"/>
 			<channel id="vacation-temperature" typeId="vacation-temperature"/>
 			<channel id="vacation-start" typeId="vacation-start"/>
@@ -74,7 +73,6 @@
 			<channel id="min-modulation-level" typeId="min-modulation-level"/>
 			<channel id="burning-hours" typeId="burning-hours"/>
 			<channel id="time-to-target" typeId="time-to-target"/>
-			<channel id="shown-set-temperature" typeId="shown-set-temperature"/>
 			<channel id="boiler-temperature" typeId="boiler-temperature"/>
 			<channel id="boiler-return-temperature" typeId="boiler-return-temperature"/>
 			<channel id="max-boiler-temperature" typeId="max-boiler-temperature"/>
@@ -307,14 +305,6 @@
 		</state>
 	</channel-type>
 
-	<channel-type id="preset-mode-duration">
-		<item-type>Number:Time</item-type>
-		<label>Preset Mode Duration</label>
-		<description>Time remaining in the active timed mode (extend, holiday, or fireplace). Not shown in manual
-			or auto mode.</description>
-		<state readOnly="true" pattern="%d %unit%"/>
-	</channel-type>
-
 	<channel-type id="flame">
 		<item-type>Switch</item-type>
 		<label>Flame</label>
@@ -478,14 +468,6 @@
 		<description>Active boiler error codes, comma-separated. Empty when there are none.</description>
 		<category>Error</category>
 		<state readOnly="true"/>
-	</channel-type>
-
-	<channel-type id="shown-set-temperature" advanced="true">
-		<item-type>Number:Temperature</item-type>
-		<label>Displayed Setpoint</label>
-		<description>Setpoint currently shown on the thermostat's display.</description>
-		<category>Temperature</category>
-		<state readOnly="true" pattern="%.1f %unit%"/>
 	</channel-type>
 
 	<channel-type id="average-outside-temperature" advanced="true">
@@ -826,8 +808,9 @@
 	<channel-type id="time-zone" advanced="true">
 		<item-type>String</item-type>
 		<label>Time Zone</label>
-		<description>The thermostat's configured time zone. Only "berlin" is device-confirmed; any other value reads as
-			"unknown".</description>
+		<description>The thermostat's configured time zone. Only "berlin" has been confirmed against this device; the
+			other
+			cities follow the app/portal's dropdown order.</description>
 		<state readOnly="true"/>
 	</channel-type>
 

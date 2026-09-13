@@ -47,7 +47,6 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_TARGET_TEMPERATURE = "heating#target-temperature";
     public static final String CHANNEL_CH_CONTROL_MODE = "heating#control-mode";
     public static final String CHANNEL_PRESET_MODE = "control#preset-mode";
-    public static final String CHANNEL_PRESET_MODE_DURATION = "control#preset-mode-duration";
     public static final String CHANNEL_CH_WATER_TEMPERATURE = "heating#water-temperature";
     public static final String CHANNEL_CH_RETURN_TEMPERATURE = "heating#return-temperature";
     public static final String CHANNEL_CH_WATER_PRESSURE = "heating#water-pressure";
@@ -71,7 +70,6 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_TIME_TO_TARGET = "heating#time-to-target";
 
     // Advanced diagnostic channels
-    public static final String CHANNEL_SHOWN_SET_TEMPERATURE = "heating#shown-set-temperature";
     public static final String CHANNEL_AVERAGE_OUTSIDE_TEMPERATURE = "heating#average-outside-temperature";
     public static final String CHANNEL_PCB_TEMPERATURE = "device#pcb-temperature";
     public static final String CHANNEL_WIFI_SIGNAL = "device#wifi-signal";
@@ -201,6 +199,12 @@ public class AtagOneBindingConstants {
             Map.entry("tuesday", 2), Map.entry("wednesday", 3), Map.entry("thursday", 4), Map.entry("friday", 5),
             Map.entry("saturday", 6), Map.entry("sunday", 7));
 
-    /** Only {@code 1=Berlin} is device-confirmed; every other value is unmapped, not fabricated. */
-    public static final Map<Integer, String> TIME_ZONE_NAMES = Map.of(1, "berlin");
+    /**
+     * Only {@code 1=Berlin} is device-confirmed; the rest follow the app/portal dropdown's order,
+     * corroborated but not individually live-tested against this device.
+     */
+    public static final Map<Integer, String> TIME_ZONE_NAMES = Map.ofEntries(Map.entry(0, "amsterdam"),
+            Map.entry(1, "berlin"), Map.entry(2, "brussels"), Map.entry(3, "dublin"), Map.entry(4, "edinburgh"),
+            Map.entry(5, "frankfurt"), Map.entry(6, "london"), Map.entry(7, "luxembourg"), Map.entry(8, "paris"),
+            Map.entry(9, "rome"));
 }

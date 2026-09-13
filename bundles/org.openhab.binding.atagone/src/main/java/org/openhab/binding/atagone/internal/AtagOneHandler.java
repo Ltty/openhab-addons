@@ -19,6 +19,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -405,6 +406,144 @@ public class AtagOneHandler extends BaseThingHandler {
                 startPollJob(POST_COMMAND_DELAY_S);
             }
         }
+    }
+
+    /**
+     * Entry point for {@link AtagOneActions}' CH schedule-editing actions — same online/client checks
+     * and off-thread dispatch as {@link #sendComposedUpdate}, routed to the CH schedule endpoint.
+     */
+    public void sendComposedChSchedule(String label, ScheduleDTO schedule) {
+        if (disposing) {
+            return;
+        }
+        AtagOneApiClient client = apiClient;
+        if (client == null) {
+            logger.warn("Cannot send {} — not connected", label);
+            return;
+        }
+        if (getThing().getStatus() != ThingStatus.ONLINE) {
+            logger.debug("Ignoring {} — Thing is not ONLINE", label);
+            return;
+        }
+        scheduler.execute(() -> sendChScheduleUpdate(client, schedule));
+    }
+
+    /**
+     * Entry point for {@link AtagOneActions}' DHW schedule-editing actions — mirrors {@link #sendComposedChSchedule}.
+     */
+    public void sendComposedDhwSchedule(String label, ScheduleDTO schedule) {
+        if (disposing) {
+            return;
+        }
+        AtagOneApiClient client = apiClient;
+        if (client == null) {
+            logger.warn("Cannot send {} — not connected", label);
+            return;
+        }
+        if (getThing().getStatus() != ThingStatus.ONLINE) {
+            logger.debug("Ignoring {} — Thing is not ONLINE", label);
+            return;
+        }
+        scheduler.execute(() -> sendDhwScheduleUpdate(client, schedule));
+    }
+
+    /**
+     * Sets or replaces one time period in a weekday's CH schedule. {@code periodIndex} may equal the
+     * day's current period count to append a new period. Resends the rest of the week and the
+     * schedule's {@code base_temp} unchanged — the device requires the complete schedule object on
+     * every write.
+     *
+     * @return the composed schedule, or {@code null} if the weekday/index is out of range or no prior
+     *         poll has captured the current CH schedule yet
+     */
+    @Nullable
+    public ScheduleDTO composeChSchedulePeriodSet(String weekday, int periodIndex, int startMinutes, int endMinutes,
+            double temperatureCelsius) {
+        return composeSchedulePeriodChange(lastChScheduleEntries, CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, weekday,
+                periodIndex, new double[] { startMinutes, endMinutes, temperatureCelsius });
+    }
+
+    /**
+     * Removes one time period from a weekday's CH schedule, shifting later periods down.
+     *
+     * @return the composed schedule, or {@code null} if the weekday/index is out of range or no prior
+     *         poll has captured the current CH schedule yet
+     */
+    @Nullable
+    public ScheduleDTO composeChSchedulePeriodClear(String weekday, int periodIndex) {
+        return composeSchedulePeriodChange(lastChScheduleEntries, CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, weekday,
+                periodIndex, null);
+    }
+
+    /** Sets or replaces one time period in a weekday's DHW schedule — mirrors {@link #composeChSchedulePeriodSet}. */
+    @Nullable
+    public ScheduleDTO composeDhwSchedulePeriodSet(String weekday, int periodIndex, int startMinutes, int endMinutes,
+            double temperatureCelsius) {
+        return composeSchedulePeriodChange(lastDhwScheduleEntries, CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE, weekday,
+                periodIndex, new double[] { startMinutes, endMinutes, temperatureCelsius });
+    }
+
+    /** Removes one time period from a weekday's DHW schedule — mirrors {@link #composeChSchedulePeriodClear}. */
+    @Nullable
+    public ScheduleDTO composeDhwSchedulePeriodClear(String weekday, int periodIndex) {
+        return composeSchedulePeriodChange(lastDhwScheduleEntries, CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE, weekday,
+                periodIndex, null);
+    }
+
+    /**
+     * Shared mutation for the four {@code composeXxxSchedulePeriodYyy} methods above. {@code newPeriod}
+     * being {@code null} means "clear the period at {@code periodIndex}"; otherwise it replaces (or, if
+     * {@code periodIndex} equals the day's current length, appends) that period. {@code weekday} is a
+     * name (matching {@link AtagOneBindingConstants#WEEKDAY_BY_NAME}), not a raw index — the device
+     * uses two different, unrelated weekday numbering schemes across its protocol (this array is
+     * 0-indexed from Monday, {@code configuration.dhw_legion_day} is 1-indexed), and a name sidesteps
+     * that ambiguity for anyone calling these actions.
+     */
+    @Nullable
+    private ScheduleDTO composeSchedulePeriodChange(double @Nullable [][][] lastEntries, String baseTempChannel,
+            String weekday, int periodIndex, double @Nullable [] newPeriod) {
+        Integer weekdayNumber = WEEKDAY_BY_NAME.get(weekday.toLowerCase());
+        if (weekdayNumber == null || lastEntries == null || periodIndex < 0) {
+            return null;
+        }
+        int dayIndex = weekdayNumber - 1;
+        if (dayIndex < 0 || dayIndex >= lastEntries.length) {
+            return null;
+        }
+        double @Nullable [][] dayEntries = lastEntries[dayIndex];
+        if (dayEntries == null) {
+            return null;
+        }
+        double[][] updatedDay;
+        if (newPeriod != null) {
+            if (periodIndex > dayEntries.length) {
+                return null;
+            }
+            updatedDay = periodIndex < dayEntries.length ? dayEntries.clone()
+                    : Arrays.copyOf(dayEntries, dayEntries.length + 1);
+            updatedDay[periodIndex] = newPeriod;
+        } else {
+            if (periodIndex >= dayEntries.length) {
+                return null;
+            }
+            updatedDay = new double[dayEntries.length - 1][];
+            System.arraycopy(dayEntries, 0, updatedDay, 0, periodIndex);
+            System.arraycopy(dayEntries, periodIndex + 1, updatedDay, periodIndex, dayEntries.length - periodIndex - 1);
+        }
+        State storedBaseTemp = stateMap.get(baseTempChannel);
+        if (!(storedBaseTemp instanceof QuantityType<?> qt)) {
+            return null;
+        }
+        QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+        if (celsius == null) {
+            return null;
+        }
+        double[][][] updatedEntries = lastEntries.clone();
+        updatedEntries[dayIndex] = updatedDay;
+        ScheduleDTO schedule = new ScheduleDTO();
+        schedule.base_temp = celsius.doubleValue();
+        schedule.entries = updatedEntries;
+        return schedule;
     }
 
     /**
@@ -1093,7 +1232,6 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_DHW_WATER_PRESSURE, new QuantityType<>(r.report.dhw_water_pres, Units.BAR));
         updateIfChanged(CHANNEL_CH_SETPOINT, new QuantityType<>(r.report.ch_setpoint, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_DHW_TEMPERATURE, new QuantityType<>(r.report.dhw_water_temp, SIUnits.CELSIUS));
-        updateIfChanged(CHANNEL_SHOWN_SET_TEMPERATURE, new QuantityType<>(r.report.shown_set_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_AVERAGE_OUTSIDE_TEMPERATURE, new QuantityType<>(r.report.tout_avg, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_PCB_TEMPERATURE, new QuantityType<>(r.report.pcb_temp, SIUnits.CELSIUS));
 
@@ -1153,13 +1291,6 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_CH_CONTROL_MODE,
                 new StringType(CH_CONTROL_MODE_NAMES.getOrDefault(r.control.ch_control_mode, "thermostat")));
         updateIfChanged(CHANNEL_PRESET_MODE, new StringType(CH_MODE_NAMES.getOrDefault(r.control.ch_mode, "manual")));
-        int modeForDuration = r.control.ch_mode;
-        if (modeForDuration == CH_MODE_EXTEND || modeForDuration == CH_MODE_FIREPLACE
-                || modeForDuration == CH_MODE_HOLIDAY) {
-            updateIfChanged(CHANNEL_PRESET_MODE_DURATION, new QuantityType<>(r.control.ch_mode_duration, Units.SECOND));
-        } else {
-            updateIfChanged(CHANNEL_PRESET_MODE_DURATION, UnDefType.UNDEF);
-        }
         updateIfChanged(CHANNEL_DHW_TARGET_TEMPERATURE, new QuantityType<>(r.control.dhw_temp_setp, SIUnits.CELSIUS));
         updateDhwTargetTemperatureBounds(r.configuration.dhw_min_set, r.configuration.dhw_max_set);
         // control.dhw_mode is deliberately not exposed as a channel — no source documents its value

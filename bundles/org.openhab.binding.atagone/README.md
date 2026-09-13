@@ -101,13 +101,15 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | Channel ID | Type | RW | Description |
 |------------|------|----|-------------|
 | `control#preset-mode` | `String` | RW | Active preset: `manual`, `auto`, `holiday`, `extend`, `fireplace`. The **only** channel that can activate or cancel a mode — see [Preset modes](#preset-modes) |
-| `control#preset-mode-duration` | `Number:Time` | R | Remaining duration of current timed preset |
 | `control#vacation-duration` | `Number:Time` | RW | Vacation duration in days — **value-setter only**, writing it does not activate holiday mode. Resets to 0 on cancel |
 | `control#vacation-temperature` | `Number:Temperature` | RW | Setpoint during vacation |
 | `control#vacation-start` | `DateTime` | R | Vacation period start (advanced) |
 | `control#vacation-end` | `DateTime` | R | Vacation period end (advanced) |
-| `control#extend-duration` | `Number:Time` | RW | **Value-setter only** — writing it does not activate extend mode. In 15-minute increments, 15 min – 6 h. This is **additional** time on top of whatever's left until the device's next programmed schedule change, not an absolute session length. Persists across cancel (unlike the other two duration channels). See `preset-mode-duration` for the actual remaining-time countdown |
+| `control#vacation-remaining` | `Number:Time` | R | Time remaining in the current holiday period (advanced) |
+| `control#extend-duration` | `Number:Time` | RW | **Value-setter only** — writing it does not activate extend mode. In 15-minute increments, 15 min – 6 h. This is **additional** time on top of whatever's left until the device's next programmed schedule change, not an absolute session length. Persists across cancel (unlike the other two duration channels). See `extend-remaining` for the actual remaining-time countdown |
+| `control#extend-remaining` | `Number:Time` | R | Time remaining in the current extend session (advanced) |
 | `control#fireplace-duration` | `Number:Time` | RW | Fireplace mode duration in hours, 1–24 — **value-setter only**, writing it does not activate fireplace mode. Reverts to the factory default (1 h) on cancel |
+| `control#fireplace-remaining` | `Number:Time` | R | Time remaining in the current fireplace session (advanced) |
 | `control#vacation-duration-default` | `Number:Time` | RW | Stored default vacation duration used when holiday mode starts with no explicit duration (advanced) |
 | `control#extend-duration-default` | `Number:Time` | RW | Stored default extend duration used when extend mode starts with no explicit duration, in 15-minute increments (advanced) |
 | `control#next-schedule-time` | `DateTime` | R | When the central heating schedule's next entry starts (advanced) |
@@ -201,8 +203,8 @@ Writing an unknown value is rejected with a warning and the item reverts to its 
 To activate a mode with a **custom** duration in a single write, instead of first writing the duration
 channel and then `preset-mode`, use the [Actions](#actions) below.
 
-Use `preset-mode-duration` to see the actual remaining time in an active timed preset; the duration
-channels themselves only show the stored request value, not a countdown.
+Use `vacation-remaining`, `extend-remaining`, or `fireplace-remaining` to see the actual countdown in
+an active timed preset; the duration channels themselves only show the stored request value.
 
 ## Holiday (vacation) mode
 
@@ -256,10 +258,10 @@ binding logs a warning when this happens. The `cancelMode` action reports this e
 
 ## Actions
 
-The binding registers four [Thing Actions](https://www.openhab.org/docs/configuration/rules-dsl.html#thing-actions)
-under the `atagone` scope, for rule authors who want to activate a mode with a custom duration — or cancel
-one — in a single call, instead of the two-write channel pattern described above (set the duration
-channel, then `preset-mode`):
+The binding registers eight [Thing Actions](https://www.openhab.org/docs/configuration/rules-dsl.html#thing-actions)
+under the `atagone` scope: four for activating or cancelling a mode with a custom duration in a single
+call, instead of the two-write channel pattern described above (set the duration channel, then
+`preset-mode`), and four for editing weekly schedules period-by-period, which no channel exposes at all.
 
 | Action | Description |
 |--------|-------------|
@@ -267,17 +269,28 @@ channel, then `preset-mode`):
 | `activateExtend(long durationSeconds)` | Activates extend mode immediately, additive to the time remaining until the next schedule boundary |
 | `activateFireplace(long durationSeconds)` | Activates fireplace mode immediately for the given duration |
 | `cancelMode()` | Cancels whichever timed preset is currently active or pending and returns to auto. Returns `true` if the mode being left is fireplace, meaning the write is accepted but requires confirming on the thermostat's physical display to actually take effect |
+| `setChSchedulePeriod(String weekday, int periodIndex, int startMinutes, int endMinutes, double temperatureCelsius)` | Sets or replaces one time period in a weekday's central heating schedule. `periodIndex` is 0-based within that day's existing periods; pass the day's current period count to append a new one |
+| `clearChSchedulePeriod(String weekday, int periodIndex)` | Removes one time period from a weekday's central heating schedule, shifting later periods down |
+| `setDhwSchedulePeriod(String weekday, int periodIndex, int startMinutes, int endMinutes, double temperatureCelsius)` | Same as `setChSchedulePeriod`, for the hot water schedule |
+| `clearDhwSchedulePeriod(String weekday, int periodIndex)` | Same as `clearChSchedulePeriod`, for the hot water schedule |
 
-Each action composes the same multi-field write the corresponding `preset-mode` channel value uses
-internally (e.g. `activateVacation` sets both `ch_mode` and the device's `start_vacation` field in one
-request) — vacation in particular cannot be activated with `ch_mode` alone, and `cancelMode` handles the
-active-vs-pending distinction for cancelling a vacation automatically, so a script author never needs to
-know these details.
+Each activation/cancel action composes the same multi-field write the corresponding `preset-mode`
+channel value uses internally (e.g. `activateVacation` sets both `ch_mode` and the device's
+`start_vacation` field in one request) — vacation in particular cannot be activated with `ch_mode`
+alone, and `cancelMode` handles the active-vs-pending distinction for cancelling a vacation
+automatically, so a script author never needs to know these details.
+
+The schedule actions take a weekday name (`monday`..`sunday`), not a raw day number — the device uses
+two different, unrelated weekday numbering schemes internally, and a name sidesteps that ambiguity.
+`weekday` is case-insensitive. Every call resends the entire week's schedule with only the targeted
+period changed; **writing a schedule has been observed to make the thermostat briefly unresponsive
+(around 100 seconds)**, so avoid calling these from a tight loop or in response to frequent events.
 
 Example from a rule:
 
 ```javascript
 actions.thingActions("atagone", "atagone:thermostat:boiler").activateFireplace(7200);
+actions.thingActions("atagone", "atagone:thermostat:boiler").setChSchedulePeriod("monday", 0, 360, 1320, 20.0);
 ```
 
 ## Full example

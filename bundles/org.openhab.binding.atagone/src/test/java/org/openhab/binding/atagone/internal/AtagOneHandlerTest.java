@@ -670,6 +670,138 @@ class AtagOneHandlerTest {
     }
 
     @Test
+    void chSchedulePeriodSetReplacesExistingPeriodAndKeepsOtherDaysUntouched() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 270, 1440, 48.5 } };
+        entries[1] = new double[][] { { 0, 1440, 22.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        ScheduleDTO schedule = handler.composeChSchedulePeriodSet("monday", 0, 360, 1200, 20.0);
+
+        assertNotNull(schedule);
+        assertEquals(22.5, schedule.base_temp, 0.001);
+        assertArrayEquals(new double[] { 360, 1200, 20.0 }, schedule.entries[0][0], 0.001);
+        assertArrayEquals(entries[1], schedule.entries[1]);
+        // The original array is untouched — sendChScheduleUpdate() must send a genuinely new object.
+        assertArrayEquals(new double[] { 270, 1440, 48.5 }, entries[0][0], 0.001);
+    }
+
+    @Test
+    void chSchedulePeriodSetAppendsWhenIndexEqualsDayLength() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 360, 18.0 } };
+        for (int i = 1; i < 7; i++) {
+            entries[i] = new double[0][];
+        }
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        ScheduleDTO schedule = handler.composeChSchedulePeriodSet("monday", 1, 600, 1200, 21.0);
+
+        assertNotNull(schedule);
+        assertEquals(2, schedule.entries[0].length);
+        assertArrayEquals(new double[] { 600, 1200, 21.0 }, schedule.entries[0][1], 0.001);
+    }
+
+    @Test
+    void chSchedulePeriodSetRejectsIndexBeyondAppendPosition() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 360, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodSet("monday", 5, 600, 1200, 21.0));
+    }
+
+    @Test
+    void chSchedulePeriodClearRemovesPeriodAndShiftsLaterOnesDown() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[2] = new double[][] { { 0, 360, 18.0 }, { 360, 720, 20.0 }, { 720, 1440, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        ScheduleDTO schedule = handler.composeChSchedulePeriodClear("wednesday", 0);
+
+        assertNotNull(schedule);
+        assertEquals(2, schedule.entries[2].length);
+        assertArrayEquals(new double[] { 360, 720, 20.0 }, schedule.entries[2][0], 0.001);
+        assertArrayEquals(new double[] { 720, 1440, 18.0 }, schedule.entries[2][1], 0.001);
+    }
+
+    @Test
+    void chSchedulePeriodClearRejectsIndexAtOrBeyondDayLength() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 1440, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodClear("monday", 1));
+    }
+
+    @Test
+    void chSchedulePeriodChangeRejectsUnknownWeekday() throws ReflectiveOperationException {
+        seedLastChScheduleEntries(new double[7][][]);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodSet("someday", 0, 0, 1440, 18.0));
+        assertNull(handler.composeChSchedulePeriodClear("", 0));
+    }
+
+    @Test
+    void chSchedulePeriodChangeIsCaseInsensitiveOnWeekday() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[6] = new double[][] { { 0, 1440, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNotNull(handler.composeChSchedulePeriodClear("SUNDAY", 0));
+    }
+
+    @Test
+    void chSchedulePeriodChangeRejectedWithoutPriorPoll() throws ReflectiveOperationException {
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodSet("monday", 0, 0, 1440, 18.0));
+    }
+
+    @Test
+    void chSchedulePeriodChangeRejectedWithoutBaseTemperatureState() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 1440, 18.0 } };
+        seedLastChScheduleEntries(entries);
+
+        assertNull(handler.composeChSchedulePeriodSet("monday", 0, 0, 1440, 18.0));
+    }
+
+    @Test
+    void chSchedulePeriodChangeRejectsNullDayEntriesWithoutThrowing() throws ReflectiveOperationException {
+        // A day with no periods at all may arrive as a null slot in the entries array, not just an
+        // empty one — must fail gracefully like any other invalid input, not throw.
+        seedLastChScheduleEntries(new double[7][][]);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodSet("monday", 0, 0, 1440, 18.0));
+        assertNull(handler.composeChSchedulePeriodClear("monday", 0));
+    }
+
+    @Test
+    void dhwSchedulePeriodSetAndClearMirrorChSchedule() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[4] = new double[][] { { 0, 360, 45.0 }, { 360, 1260, 50.0 }, { 1260, 1440, 45.0 } };
+        seedLastDhwScheduleEntries(entries);
+        seedState(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(48.0, SIUnits.CELSIUS));
+
+        ScheduleDTO setResult = handler.composeDhwSchedulePeriodSet("friday", 1, 400, 1200, 55.0);
+        assertNotNull(setResult);
+        assertArrayEquals(new double[] { 400, 1200, 55.0 }, setResult.entries[4][1], 0.001);
+
+        ScheduleDTO clearResult = handler.composeDhwSchedulePeriodClear("friday", 2);
+        assertNotNull(clearResult);
+        assertEquals(2, clearResult.entries[4].length);
+    }
+
+    @Test
     void unhandledChannelIsRejected() {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
