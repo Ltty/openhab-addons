@@ -353,10 +353,36 @@ between the two schedules in this capture:
   `base_temp` (55.0) is never reached in this capture. Whether it is a genuine fallback value or an
   inert default cannot be determined from a schedule with no gap to expose it.
 
-**Write shape: VERIFIED for `base_temp`.** Writing `dhw_schedule.base_temp` requires sending the
-complete `dhw_schedule` object (`entries` resent unchanged, `base_temp` changed) — a partial write of
-`base_temp` alone was not accepted. Confirmed live, twice. No entry-level write (changing a triple's
-`start`/`end`/`temp`) has been attempted; that shape remains undocumented.
+**Write shape: VERIFIED for `base_temp`, and now for `entries` too.** Writing `dhw_schedule.base_temp`
+requires sending the complete `dhw_schedule` object (`entries` resent unchanged, `base_temp` changed) —
+a partial write of `base_temp` alone was not accepted. Confirmed live, twice. An entries-changing write
+(splitting a triple to open a temporary gap, base_temp changed to a distinct test value) was also
+confirmed live (2026-09-13) — accepted (`acc_status:2`), echoed back correctly, and cleanly reverted.
+The top-level request shape is `{"update_message": {..., "schedules": {"dhw_schedule": {...}}}}` — a
+key parallel to `control`/`configuration`, not previously recorded here. The temporary gap was
+independently corroborated in the ATAG web portal/app's own schedule view during the test — the app
+rendered the edited schedule shape correctly, confirming the write was structurally valid to the
+official software too, not just superficially accepted (`acc_status:2`) by the device's API layer.
+
+**New risk, confirmed live (2026-09-13): writing `entries` (not just `base_temp` alone) appears to
+trigger brief device unresponsiveness** — ~100 s of empty `/retrieve` replies immediately after the
+write, then an elevated empty-reply rate for a few minutes after that. Resembles the documented
+"boiler restarts its API subsystem" pattern from a missing `ch_mode_duration`, though shorter here and
+`resets` did not increment. The prior `base_temp`-only writes never touched `entries` and apparently
+never hit this. Any future entries-write test should budget for this recovery window before trying to
+observe an effect inside a short gap.
+
+**Gap-fallback experiment (2026-09-13) — inconclusive.** Opened a temporary 15-minute gap in
+`dhw_schedule.entries` (all 7 days identically, sidestepping the unconfirmed weekday-order question)
+with a distinctive test `base_temp` of `48.0`. Sampled `control.dhw_temp_setp` at minutes
+561/563/563/564 of a [563,578) gap — it stayed at `50.0` (the pre-gap entry's temp) throughout, never
+showing `48.0`. The device was in `ch_mode=3` (holiday/vacation) for CH at the time; whether that
+affects DHW schedule handling at all is untested (DHW and CH presets are otherwise documented as
+independent). Only ~1 of the 15-minute gap window was actually sampled before connectivity was lost
+to the write-triggered unresponsiveness above, so this is a weak negative result, not a confirmed one
+— it rules out an immediate (sub-1-minute) fallback but not a slower one, and doesn't rule out CH
+holiday mode as a confound. A clean re-run needs: CH in `auto` mode (not holiday), and dense polling
+across the full gap window planned around the ~100s post-write unresponsiveness documented above.
 
 ---
 
@@ -587,11 +613,16 @@ deliberately varied field.
    individual setting, so the actual device-side integer for each non-Auto/Berlin value (only
    `1440=Automatic` and `1=Berlin` are device-confirmed) remains INFERRED, not VERIFIED.
 1. What does `control.dhw_mode` (reads `1`) enumerate? No app or cloud surface for it exists at
-   all (confirmed) — consistent with the decision to leave it unexposed rather than guess at a
-   mapping with no source to check it against. Newly relevant (2026-08-31): with `dhw_schedule.entries`
-   covering all 1440 minutes of the day with no gaps, `base_temp` cannot be a "no active schedule
-   period" fallback under this device's schedule config — `dhw_mode` is the most likely candidate for
-   whatever actually decides base_temp-vs-active-schedule-entry precedence, not tested.
+   all (confirmed, including a direct check 2026-09-13 — there is no DHW mode setting exposed
+   anywhere) — consistent with the decision to leave it unexposed rather than guess at a mapping with
+   no source to check it against. Newly relevant (2026-08-31): with `dhw_schedule.entries` covering
+   all 1440 minutes of the day with no gaps, `base_temp` cannot be a "no active schedule period"
+   fallback under this device's schedule config — `dhw_mode` was suspected to be the field deciding
+   base_temp-vs-active-schedule-entry precedence, but with no user-facing DHW mode concept to anchor
+   that suspicion to, it remains an unexplained firmware-internal value, not a mode selector. The
+   2026-09-13 gap experiment (see the `schedules` section) found no `base_temp` fallback effect within
+   the first minute of an opened gap, for reasons still unresolved — `dhw_mode` is no longer the
+   leading candidate explanation.
 1. What is `boiler_status` bit `0x200` (observed set in the 2026-08-27 snapshot, not covered by any
    currently-decoded bit)?
 1. What are the true units of `report.current` and `report.power_cons`?
