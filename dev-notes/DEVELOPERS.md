@@ -394,6 +394,13 @@ inside the gap before the write-triggered unresponsiveness (above) ate the rest 
 sample is a thin basis to have expected a positive reading on regardless. Not worth re-running; the
 question it was trying to answer is settled by other means.
 
+**`ch_schedule.base_temp` write, VERIFIED live (2026-09-13, Phase D).** Written both directions
+(22.5 → 23.0 → 22.5) via `updateChSchedule()`, `entries` intact throughout, `resets` unchanged. First
+attempt got an empty reply (did not apply); the immediate retry got `acc_status:2` and applied
+correctly — consistent with the empty-reply-means-failure signal established during Phase C's gate.
+Much cleaner than DHW's gate: no extended unresponsiveness window this time, just the ordinary
+occasional empty reply.
+
 ---
 
 ## Write semantics
