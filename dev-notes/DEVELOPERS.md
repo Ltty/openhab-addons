@@ -340,32 +340,30 @@ since that work will build directly on it.
 | `start`, `end` | int, minutes since midnight (0–1440) |
 | `temp` | double, °C — the setpoint for that window |
 
-**Fallback semantics — reframed 2026-09-13, needs re-verification.** Within a triple's `[start, end)`
-window, `temp` applies. Per the user (device owner): **`base_temp` applies when a specific weekday has
-no schedule set at all** — i.e. the fallback is keyed on a whole day carrying an empty (or absent)
-`entries` list, not on a partial gap between triples within an otherwise-scheduled day. This is a
-materially different mechanism than what was previously assumed here, and it explains why the
-2026-09-13 gap experiment (below) found no effect: that test carved a partial intra-day gap into a day
-that still had other entries, which — under this corrected model — was never a condition that would
-invoke `base_temp` in the first place, regardless of CH mode or timing.
+**Fallback semantics — CH confirmed (2026-09-13, user observation), DHW still unconfirmed.** Within a
+triple's `[start, end)` window, `temp` applies. Outside every triple — whether that's a partial gap
+inside an otherwise-scheduled day, or a whole day with no entries at all — `base_temp` is the fallback.
+(An earlier pass through this investigation framed these as two competing, mutually-exclusive models —
+whole-day-only vs. partial-gap — based on how the "not set for a specific day" report was initially
+read; the CH observation below resolves that in favor of the simpler unified rule: any uncovered
+minute, by either cause, falls back to `base_temp`.)
 
-This reframes the `ch_schedule` observation too. Its triples, `[0,240,20.5]` and `[1230,1440,20.5]`,
-leave 04:00–20:30 uncovered — previously assumed to be `base_temp`-filled. What is actually
-independently confirmed is only that minute 1230 (20:30) is treated as a schedule boundary — the
-server-side timing math for extend mode's additive duration matches predicted-vs-actual within 5
-seconds against a live activation. That confirms the device recognizes 1230 as "the next scheduled
-change," not that the room setpoint during 240–1230 actually equals `base_temp` — those are two
-different claims, and only the first is verified. Whether a *partial* intra-day gap behaves the same
-as a *whole empty day* for fallback purposes is now an open question, not an assumption.
-
-- `dhw_schedule`: triples currently tile the entire day for all 7 weekdays (`[0,360]`, `[360,1260]`,
-  `[1260,1440]`) — no day is empty, so `base_temp` (55.0) has no condition to apply under either model
-  in the schedule as currently configured.
-
-**Cleaner re-test, not yet run:** write one weekday's `entries` as a genuinely empty array (`[]`) —
-once the weekday-order-vs-`entries[i]` mapping is confirmed — and check whether that day's applied
-setpoint becomes `base_temp`. This directly tests the reported mechanism, unlike the 2026-09-13
-experiment, and is also a simpler edit (no triple-splitting/boundary arithmetic needed).
+- **`ch_schedule`, CONFIRMED:** triples are `[0,240,20.5]` and `[1230,1440,20.5]`, leaving 04:00–20:30
+  uncovered. The user confirmed the thermostat applies `base_temp` (22.5°C) during that window, not
+  the entries' own `20.5°C` — direct confirmation of the fallback for a *partial intra-day gap*.
+  (Previously, only the boundary itself — minute 1230 being the next scheduled change — was
+  independently confirmed, via extend-mode's timing math matching a live activation within 5 seconds.
+  The temperature-fallback claim itself is now separately confirmed too.)
+- **`dhw_schedule`, still UNCONFIRMED — not just untested, currently untestable without a write.** As
+  of the 2026-09-13 capture, `entries` fully tiles all 1440 minutes for every weekday (`[0,360,45.0]`,
+  `[360,1260,50.0]`, `[1260,1440,45.0]`) — there is no gap in the live schedule to observe a fallback
+  through. `dhw_temp_setp` reading `50.0` during this window reflects the literal scheduled entry for
+  that time, not `base_temp` (55.0) leaking through a gap — there is no gap for it to leak through.
+  Assuming DHW behaves like CH (same firmware, same schedule shape, same `base_temp` mechanism) is
+  reasonable but not yet directly confirmed; doing so would require either a real gap appearing in the
+  live schedule, or another temporary write-and-revert test — which carries the entries-write
+  unresponsiveness risk documented below, and should get the same up-front approval any live write
+  test does here.
 
 **Write shape: VERIFIED for `base_temp`, and now for `entries` too.** Writing `dhw_schedule.base_temp`
 requires sending the complete `dhw_schedule` object (`entries` resent unchanged, `base_temp` changed) —
@@ -386,18 +384,18 @@ write, then an elevated empty-reply rate for a few minutes after that. Resembles
 never hit this. Any future entries-write test should budget for this recovery window before trying to
 observe an effect inside a short gap.
 
-**Gap-fallback experiment (2026-09-13) — tested the wrong condition, per the reframing above.**
-Opened a temporary 15-minute *partial intra-day* gap in `dhw_schedule.entries` (all 7 days
-identically, sidestepping the unconfirmed weekday-order question) with a distinctive test `base_temp`
-of `48.0`. Sampled `control.dhw_temp_setp` at minutes 561/563/563/564 of a [563,578) gap — it stayed at
-`50.0` (the pre-gap entry's temp) throughout, never showing `48.0`. Given the fallback is reportedly
-keyed on a whole day having no schedule at all, not a partial gap within a day that still has other
-entries, this result is now expected rather than surprising — the test simply didn't create the
-condition the fallback is reported to trigger on. (Secondary caveats that would apply even if the
-mechanism were partial-gap-based: only ~1 of the 15 minutes was actually sampled before the
+**Gap-fallback experiment (2026-09-13) — genuinely inconclusive, not superseded.** Opened a temporary
+15-minute partial intra-day gap in `dhw_schedule.entries` (all 7 days identically, sidestepping the
+unconfirmed weekday-order question) with a distinctive test `base_temp` of `48.0`. Sampled
+`control.dhw_temp_setp` at minutes 561/563/563/564 of a [563,578) gap — it stayed at `50.0` (the
+pre-gap entry's temp) throughout, never showing `48.0`. Since a partial intra-day gap is now confirmed
+(via the CH observation above) to be a real fallback-triggering condition, this negative result can no
+longer be dismissed as testing the wrong mechanism — it's a genuine, if weak, data point against DHW
+behaving the same as CH. Weak because: only ~1 of the 15 minutes was actually sampled before the
 write-triggered unresponsiveness above ate the rest of the window, and CH was in `ch_mode=3`
-(holiday/vacation) throughout, an untested confound.) **Superseded by the cleaner re-test above** —
-an empty-day write, not a partial-gap write.
+(holiday/vacation) throughout — untested whether that cross-affects DHW schedule handling. A cleaner
+re-run (full gap window sampled, CH in `auto`) is the direct way to settle DHW specifically, and
+remains the next concrete step if this needs resolving before Phase C ships.
 
 ---
 
