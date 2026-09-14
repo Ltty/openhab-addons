@@ -346,10 +346,10 @@
 	</channel-type>
 
 	<channel-type id="time-to-target">
-		<item-type>Number:Time</item-type>
+		<item-type unitHint="min">Number:Time</item-type>
 		<label>Time to Target</label>
 		<description>Estimated time until the room reaches the target temperature.</description>
-		<state readOnly="true" pattern="%d %unit%"/>
+		<state readOnly="true" pattern="%.0f %unit%"/>
 	</channel-type>
 
 	<channel-type id="vacation-duration">
@@ -487,11 +487,19 @@
 	</channel-type>
 
 	<channel-type id="wifi-signal" advanced="true">
-		<item-type unitHint="dBm">Number:Power</item-type>
+		<item-type>Number:Dimensionless</item-type>
 		<label>WiFi Signal</label>
-		<description>WiFi signal strength. Closer to 0 is stronger.</description>
+		<description>WiFi signal quality.</description>
 		<category>QualityOfService</category>
-		<state readOnly="true" pattern="%d %unit%"/>
+		<state readOnly="true">
+			<options>
+				<option value="0">No Signal</option>
+				<option value="1">Weak</option>
+				<option value="2">Average</option>
+				<option value="3">Good</option>
+				<option value="4">Excellent</option>
+			</options>
+		</state>
 	</channel-type>
 
 	<channel-type id="voltage" advanced="true">
@@ -791,15 +799,15 @@
 	</channel-type>
 
 	<channel-type id="legionella-protection-time" advanced="true">
-		<item-type unitHint="min">Number:Time</item-type>
+		<item-type>String</item-type>
 		<label>Legionella Time</label>
-		<description>Time of day, in minutes since midnight, legionella protection starts at.</description>
+		<description>Time of day legionella protection starts at, as HH:mm.</description>
 		<category>Time</category>
-		<state pattern="%d %unit%" min="0" max="1439"/>
+		<state pattern="%s"/>
 	</channel-type>
 
 	<channel-type id="display-brightness" advanced="true">
-		<item-type>Number:Dimensionless</item-type>
+		<item-type unitHint="%">Number:Dimensionless</item-type>
 		<label>Display Brightness</label>
 		<description>The thermostat's display brightness.</description>
 		<state pattern="%d %unit%" min="10" max="100"/>
@@ -808,17 +816,39 @@
 	<channel-type id="time-zone" advanced="true">
 		<item-type>String</item-type>
 		<label>Time Zone</label>
-		<description>The thermostat's configured time zone. Only "berlin" has been confirmed against this device; the
+		<description>The thermostat's configured time zone. Only Berlin has been confirmed against this device; the
 			other
-			cities follow the app/portal's dropdown order.</description>
-		<state readOnly="true"/>
+			cities follow the app/portal's dropdown order and are unverified — write at your own
+			risk.</description>
+		<state>
+			<options>
+				<option value="amsterdam">Amsterdam</option>
+				<option value="berlin">Berlin</option>
+				<option value="brussels">Brussels</option>
+				<option value="dublin">Dublin</option>
+				<option value="edinburgh">Edinburgh</option>
+				<option value="frankfurt">Frankfurt</option>
+				<option value="london">London</option>
+				<option value="luxembourg">Luxembourg</option>
+				<option value="paris">Paris</option>
+				<option value="rome">Rome</option>
+			</options>
+		</state>
 	</channel-type>
 
 	<channel-type id="language" advanced="true">
-		<item-type>Number</item-type>
+		<item-type>String</item-type>
 		<label>Display Language</label>
-		<description>The thermostat's display language, as a device-defined integer not mapped to a locale by this binding.</description>
-		<state readOnly="true"/>
+		<description>The thermostat's display language.</description>
+		<state readOnly="true">
+			<options>
+				<option value="english">English</option>
+				<option value="dutch">Dutch</option>
+				<option value="french">French</option>
+				<option value="italian">Italian</option>
+				<option value="german">German</option>
+			</options>
+		</state>
 	</channel-type>
 
 	<channel-type id="delta-temperature" advanced="true">

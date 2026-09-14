@@ -778,6 +778,23 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
+            case CHANNEL_TIME_ZONE:
+                if (command instanceof StringType s) {
+                    /*
+                     * Only "berlin" (1) is device-confirmed; the other 9 values are inferred from the
+                     * app/portal dropdown order only (see DEVELOPERS.md). Accepted here regardless —
+                     * this binding's owner is the device's owner and can choose to exercise that risk —
+                     * but never self-assumed correct by this binding.
+                     */
+                    Integer timeZone = TIME_ZONE_BY_NAME.get(s.toString().toLowerCase());
+                    if (timeZone == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.time_zone = timeZone;
+                    return true;
+                }
+                return false;
+
             case CHANNEL_BUILDING_SIZE:
                 if (command instanceof StringType s) {
                     Integer size = BUILDING_SIZE_BY_NAME.get(s.toString().toLowerCase());
@@ -844,12 +861,12 @@ public class AtagOneHandler extends BaseThingHandler {
                 return false;
 
             case CHANNEL_LEGIONELLA_PROTECTION_TIME:
-                if (command instanceof QuantityType<?> qt) {
-                    QuantityType<?> minutes = qt.toUnit(Units.MINUTE);
+                if (command instanceof StringType s) {
+                    Integer minutes = parseTimeOfDay(s.toString());
                     if (minutes == null || !fillConfigBundle(configDto)) {
                         return false;
                     }
-                    configDto.dhw_legion_time = minutes.intValue();
+                    configDto.dhw_legion_time = minutes;
                     return true;
                 }
                 return false;
@@ -1245,7 +1262,8 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_DHW_ACTIVE, OnOffType.from(dhwActive));
         updateIfChanged(CHANNEL_MODULATION_LEVEL, new QuantityType<>(r.report.details.rel_mod_level, Units.PERCENT));
         updateIfChanged(CHANNEL_BURNING_HOURS, new QuantityType<>(r.report.burning_hours, Units.HOUR));
-        updateIfChanged(CHANNEL_TIME_TO_TARGET, new QuantityType<>(r.report.ch_time_to_temp, Units.SECOND));
+        updateIfChanged(CHANNEL_TIME_TO_TARGET,
+                new QuantityType<>(r.report.ch_time_to_temp / (double) SECONDS_PER_MINUTE, Units.MINUTE));
         /*
          * Strip RSS:…; tokens: the device embeds RSSI as a pseudo-error entry in device_errors, but
          * the dedicated wifi-signal channel already exposes the same value from the proper rssi
@@ -1259,7 +1277,7 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_BOILER_ERRORS, new StringType(boilerErrors == null ? "" : boilerErrors));
 
         // Report — advanced diagnostics
-        updateIfChanged(CHANNEL_WIFI_SIGNAL, new QuantityType<>(-r.report.rssi, Units.DECIBEL_MILLIWATTS));
+        updateIfChanged(CHANNEL_WIFI_SIGNAL, new DecimalType(classifyWifiSignal(-r.report.rssi)));
         // voltage is reported in mV when > 1000, otherwise already in V (observed device inconsistency).
         double voltage = r.report.voltage > 1000 ? r.report.voltage / 1000.0 : r.report.voltage;
         updateIfChanged(CHANNEL_VOLTAGE, new QuantityType<>(voltage, Units.VOLT));
@@ -1374,14 +1392,14 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION, OnOffType.from(config.dhw_legion_enabled == 1));
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_DAY,
                 new StringType(WEEKDAY_NAMES.getOrDefault(config.dhw_legion_day, "unknown")));
-        updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_TIME, new QuantityType<>(config.dhw_legion_time, Units.MINUTE));
+        updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType(formatTimeOfDay(config.dhw_legion_time)));
         updateIfChanged(CHANNEL_VACATION_DURATION_DEFAULT,
                 new QuantityType<>(config.ch_mode_vacation / (double) SECONDS_PER_DAY, Units.DAY));
         updateIfChanged(CHANNEL_EXTEND_DURATION_DEFAULT,
                 new QuantityType<>(config.ch_mode_extend / (double) SECONDS_PER_MINUTE, Units.MINUTE));
         updateIfChanged(CHANNEL_DISPLAY_BRIGHTNESS, new QuantityType<>(config.disp_brightness, Units.PERCENT));
         updateIfChanged(CHANNEL_TIME_ZONE, new StringType(TIME_ZONE_NAMES.getOrDefault(config.time_zone, "unknown")));
-        updateIfChanged(CHANNEL_LANGUAGE, new DecimalType(config.language));
+        updateIfChanged(CHANNEL_LANGUAGE, new StringType(LANGUAGE_NAMES.getOrDefault(config.language, "unknown")));
     }
 
     private void updateIfChanged(String channelId, State state) {
@@ -1486,6 +1504,56 @@ public class AtagOneHandler extends BaseThingHandler {
             return null;
         }
         return downloadUrl.substring(lastSlash + 1);
+    }
+
+    /**
+     * Buckets a dBm reading into a 0-4 quality scale (no signal/weak/average/good/excellent). A raw dBm
+     * channel measures accurately but openHAB's {@code Number:Power} dimension has no display unit of
+     * its own to pin to — without one, widgets fall back to the dimension's system unit (watt) and
+     * silently render the logarithmic dBm value as if it were linear power, which is meaningless to a
+     * reader. A bucketed scale sidesteps the problem entirely instead of fighting it.
+     */
+    private static int classifyWifiSignal(int dbm) {
+        if (dbm >= -50) {
+            return 4;
+        } else if (dbm >= -60) {
+            return 3;
+        } else if (dbm >= -70) {
+            return 2;
+        } else if (dbm >= -80) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    /** {@code dhw_legion_time} is minutes since midnight; shown as a clock time rather than a raw count. */
+    private static String formatTimeOfDay(int minutesSinceMidnight) {
+        int clamped = Math.max(0, Math.min(1439, minutesSinceMidnight));
+        return String.format("%02d:%02d", clamped / 60, clamped % 60);
+    }
+
+    /**
+     * Parses a {@code "HH:mm"} command back into minutes since midnight.
+     *
+     * @return the parsed minute count, or {@code null} if not a valid {@code HH:mm} time
+     */
+    @Nullable
+    static Integer parseTimeOfDay(String hhMm) {
+        int colon = hhMm.indexOf(':');
+        if (colon < 0) {
+            return null;
+        }
+        try {
+            int hours = Integer.parseInt(hhMm.substring(0, colon));
+            int minutes = Integer.parseInt(hhMm.substring(colon + 1));
+            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                return null;
+            }
+            return hours * 60 + minutes;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String resolveClientId() {

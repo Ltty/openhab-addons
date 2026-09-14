@@ -225,4 +225,12 @@ public class AtagOneBindingConstants {
             Map.entry(1, "berlin"), Map.entry(2, "brussels"), Map.entry(3, "dublin"), Map.entry(4, "edinburgh"),
             Map.entry(5, "frankfurt"), Map.entry(6, "london"), Map.entry(7, "luxembourg"), Map.entry(8, "paris"),
             Map.entry(9, "rome"));
+    public static final Map<String, Integer> TIME_ZONE_BY_NAME = Map.ofEntries(Map.entry("amsterdam", 0),
+            Map.entry("berlin", 1), Map.entry("brussels", 2), Map.entry("dublin", 3), Map.entry("edinburgh", 4),
+            Map.entry("frankfurt", 5), Map.entry("london", 6), Map.entry("luxembourg", 7), Map.entry("paris", 8),
+            Map.entry("rome", 9));
+
+    /** Verified 2026-09-13: the app's language dropdown is 0-indexed; index 4 confirmed German on this device. */
+    public static final Map<Integer, String> LANGUAGE_NAMES = Map.of(0, "english", 1, "dutch", 2, "french", 3,
+            "italian", 4, "german");
 }

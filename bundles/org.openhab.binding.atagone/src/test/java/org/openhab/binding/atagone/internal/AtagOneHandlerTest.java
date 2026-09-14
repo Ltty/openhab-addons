@@ -43,6 +43,7 @@ import org.openhab.binding.atagone.internal.dto.DeviceConfigUpdateDTO;
 import org.openhab.binding.atagone.internal.dto.RetrieveReplyDTO;
 import org.openhab.binding.atagone.internal.dto.ScheduleDTO;
 import org.openhab.core.library.types.DateTimeType;
+import org.openhab.core.library.types.DecimalType;
 import org.openhab.core.library.types.OnOffType;
 import org.openhab.core.library.types.QuantityType;
 import org.openhab.core.library.types.StringType;
@@ -832,6 +833,87 @@ class AtagOneHandlerTest {
     }
 
     @Test
+    void timeToTargetPublishesInMinutes() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.report.ch_time_to_temp = 1800; // 30 minutes
+
+        invokeUpdateChannels(reply);
+
+        QuantityType<?> state = (QuantityType<?>) readState(CHANNEL_TIME_TO_TARGET);
+        assertEquals(Units.MINUTE, state.getUnit());
+        assertEquals(30.0, state.doubleValue(), 0.001);
+    }
+
+    @Test
+    void wifiSignalBucketsRawRssiIntoQualityScale() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+
+        reply.report.rssi = 45; // negated -> -45 dBm -> excellent
+        invokeUpdateChannels(reply);
+        assertEquals(new DecimalType(4), readState(CHANNEL_WIFI_SIGNAL));
+
+        reply.report.rssi = 75; // -75 dBm -> weak
+        invokeUpdateChannels(reply);
+        assertEquals(new DecimalType(1), readState(CHANNEL_WIFI_SIGNAL));
+
+        reply.report.rssi = 90; // -90 dBm -> no signal
+        invokeUpdateChannels(reply);
+        assertEquals(new DecimalType(0), readState(CHANNEL_WIFI_SIGNAL));
+    }
+
+    @Test
+    void legionellaProtectionTimeReadsAsClockTime() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.configuration.dhw_legion_time = 435; // 07:15
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(new StringType("07:15"), readState(CHANNEL_LEGIONELLA_PROTECTION_TIME));
+    }
+
+    @Test
+    void languageDecodesToName() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.configuration.language = 4;
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(new StringType("german"), readState(CHANNEL_LANGUAGE));
+    }
+
+    @Test
+    void languageUnknownValueDecodesToUnknown() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.configuration.language = 99;
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(new StringType("unknown"), readState(CHANNEL_LANGUAGE));
+    }
+
+    @Test
+    void timeZoneWriteBundlesFullConfiguration() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_TIME_ZONE, new StringType("amsterdam"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(0, configUpdate.time_zone);
+    }
+
+    @Test
+    void timeZoneWriteRejectsUnknownCity() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        assertFalse(handler.buildControlUpdate(CHANNEL_TIME_ZONE, new StringType("atlantis"), control, configUpdate));
+    }
+
+    @Test
     void unhandledChannelIsRejected() {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
@@ -1222,16 +1304,28 @@ class AtagOneHandlerTest {
     }
 
     @Test
-    void legionellaProtectionTimeWriteConvertsToMinutes() throws ReflectiveOperationException {
+    void legionellaProtectionTimeWriteParsesHhMm() throws ReflectiveOperationException {
         seedLastConfiguration(sampleConfiguration());
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
 
-        boolean accepted = handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME,
-                new QuantityType<>(390, Units.MINUTE), control, configUpdate);
+        boolean accepted = handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType("06:30"),
+                control, configUpdate);
 
         assertTrue(accepted);
         assertEquals(390, configUpdate.dhw_legion_time);
+    }
+
+    @Test
+    void legionellaProtectionTimeWriteRejectsInvalidFormat() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        assertFalse(handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType("not-a-time"),
+                control, configUpdate));
+        assertFalse(handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType("25:00"), control,
+                configUpdate));
     }
 
     @Test

@@ -161,18 +161,19 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `hotwater#schedule-base-temperature` | `Number:Temperature` | RW | Hot water schedule's fallback temperature — its bounds come from the device (10–65 °C on a combi boiler, wider on a system boiler with a 3-port valve kit) (advanced) |
 | `hotwater#legionella-protection` | `Switch` | RW | Periodically heats the tank above a threshold to kill legionella bacteria (advanced) |
 | `hotwater#legionella-protection-day` | `String` | RW | Weekday legionella protection runs on (advanced) |
-| `hotwater#legionella-protection-time` | `Number:Time` | RW | Time of day legionella protection starts at (advanced) |
+| `hotwater#legionella-protection-time` | `String` | RW | Time of day legionella protection starts at, as `HH:mm` (advanced) |
 
 ### Device (`device#`)
 
 | Channel ID | Type | RW | Description |
 |------------|------|----|-------------|
 | `device#display-brightness` | `Number:Dimensionless` | RW | Thermostat display brightness, 10–100% (advanced) |
-| `device#time-zone` | `String` | R | Configured time zone. Only `berlin` is device-confirmed; any other value reads as `unknown` (advanced) |
-| `device#language` | `Number` | R | Display language, as a device-defined integer not mapped to a locale by this binding (advanced) |
+| `device#time-zone` | `String` | RW | Configured time zone. Only `berlin` is device-confirmed; the other 9 cities are unverified — write at your own risk (advanced) |
+| `device#language` | `String` | R | Display language: `english`, `dutch`, `french`, `italian`, or `german` (advanced) |
+| `device#wifi-signal` | `Number:Dimensionless` | R | WiFi signal quality, `0` (no signal) to `4` (excellent) — bucketed rather than raw dBm, since openHAB has no display unit to pin dBm to and would otherwise render it as watts (advanced) |
 
-Further advanced diagnostic channels in the Device group (WiFi, power supply, controller health) are
-also available (visible when **Show advanced** is enabled in the UI).
+Further advanced diagnostic channels in the Device group (power supply, controller health) are also
+available (visible when **Show advanced** is enabled in the UI).
 
 ### Alerts (`alerts#`)
 
