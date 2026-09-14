@@ -33,6 +33,9 @@ alongside this doc during development only).
 - Cloud portal HAR captures (`portal-mode-transitions.har`, `portal.atag-one.com.har`, both untracked
   at the repo root).
 - `pyatag`, the Home Assistant ATAG integration, `kozmoz/atag-one-api` (reference libraries/wikis).
+  The latter's [Thermostat Protocol wiki page](https://github.com/kozmoz/atag-one-api/wiki/Thermostat-Protocol)
+  is what corrected the `boiler_status` bit assignments (2026-09-14) — see that section — this
+  binding's own values had never been independently checked against it before.
 - **The official _ATAG ONE App and Portal User Guide_** (v171116, 48 pp.), read in full 2026-09-13
   (Phase G). The vendor's own description of every setting, with ranges, defaults, and behavior —
   added late in this project but the single highest-value source once found: it resolved the
@@ -186,7 +189,7 @@ unused. Candidate for exposure; see Gap analysis.
 | `dhw_water_pres` | double | bar | R | `hotwater#water-pressure` (Phase I) | VERIFIED |
 | `ch_water_pres` | double | bar | R | `heating#water-pressure` | VERIFIED |
 | `ch_return_temp` | double | °C | R | `heating#return-temperature`, also feeds `heating#delta-temperature` (Phase I: `ch_water_temp − ch_return_temp`) | VERIFIED |
-| `boiler_status` | int (bitmask) | — | R | `heating#flame`, `heating#burner-target` (decoded), plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) | PARTIAL — see below |
+| `boiler_status` | int (bitmask) | — | R | `heating#flame`, `heating#burner-target` (decoded), plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) | Bit assignments CORRECTED 2026-09-14 (were wrong since Phase 3) — see below |
 | `boiler_config` | int (bitmask) | — | R | — | UNKNOWN |
 | `ch_time_to_temp` | int | s | R | `heating#time-to-target` | VERIFIED |
 | `shown_set_temp` | double | °C | R | — (removed, final-review sweep 2026-09-13 — every live sample matched `heating#target-temperature` exactly and no ATAG surface justified keeping a second channel for it) | VERIFIED, but redundant with `control.ch_mode_temp` in every case observed |
@@ -201,18 +204,58 @@ unused. Candidate for exposure; see Gap analysis.
 | `resets` | int | count | R | `device#resets` | VERIFIED — used throughout live testing as the controller-reboot indicator |
 | `memory_allocation` | int | ? | R | `device#memory-allocation` | UNKNOWN unit |
 
-**`boiler_status` bitmask — incompletely decoded.** The binding decodes:
+**`boiler_status` bitmask — CH/DHW/flame bit assignments were wrong, corrected 2026-09-14.** The
+binding had decoded, since Phase 3 (2026-08-20), never independently verified against a real device
+cycle:
 
 ```java
-BOILER_STATUS_CH_ACTIVE  = 0x004
-BOILER_STATUS_BURNER_ON  = 0x008
-BOILER_STATUS_DHW_ACTIVE = 0x010
-BOILER_STATUS_FLAME      = 0x100
+BOILER_STATUS_CH_ACTIVE  = 0x004   // WRONG
+BOILER_STATUS_BURNER_ON  = 0x008   // right value, but never wired to anything
+BOILER_STATUS_DHW_ACTIVE = 0x010   // WRONG — not a real bit at all
+BOILER_STATUS_FLAME      = 0x100   // WRONG
 ```
 
-The 2026-08-27 snapshot reads `boiler_status = 512 = 0x200` — a bit **not covered by any of the
-above**. The current decode is therefore not a complete model of this field; at minimum bit 0x200's
-meaning is UNKNOWN.
+**Real-world bug report (2026-09-14, from the deployed production instance, a separate host running
+a built jar from this branch):** the ATAG ONE's physical display showed DHW actively heating while
+the binding reported CH active for the same period. Confirmed via InfluxDB persistence across two
+independent burner cycles the same day: `CHWaterTemperature` stayed flat (23.7→23.8°C,
+23.9→24.0°C) while `DHWtemperature` rose sharply (48.6→54.1°C, 41.8→54.2°C) and `BoilerTemperature`
+spiked 30+ degrees each time — an unambiguous DHW-heating signature, misclassified as `"ch"` both
+times. Separately, `heating#flame` recorded **zero ON events for the entire day**, despite
+`ModulationLevel` hitting 91–100% and `BoilerTemperature` spiking during both cycles — i.e. the
+burner was very clearly firing while `flame` stayed OFF throughout.
+
+Corroborated against an independent, commonly-cited community protocol reference,
+[kozmoz/atag-one-api's Thermostat Protocol wiki](https://github.com/kozmoz/atag-one-api/wiki/Thermostat-Protocol):
+*"boiler_status: Int: &512 = dhw_schema, &256 = ch_schema, &8 = boilerHeating, &4 = dhwHeating, &2 =
+chHeating."* This maps bit-for-bit onto every symptom: this binding's `CH_ACTIVE` (0x004) was
+actually testing the *DHW*-heating bit, so a real DHW event set it and got labeled `"ch"`; the
+binding's `DHW_ACTIVE` (0x010) isn't a real bit at all, so it could never go ON; and `FLAME` (0x100)
+was actually testing `ch_schema` (a schedule-governance flag, not burner activity), while the real
+burner-firing bit (0x008, `boilerHeating`) had been defined as `BOILER_STATUS_BURNER_ON` since Phase
+3 but never once wired to any channel — dead code sitting right next to the bug.
+
+**Corrected:**
+
+```java
+BOILER_STATUS_CH_ACTIVE  = 0x002   // was 0x004
+BOILER_STATUS_DHW_ACTIVE = 0x004   // was 0x010
+BOILER_STATUS_FLAME      = 0x008   // was 0x100 (BOILER_STATUS_BURNER_ON constant removed, superseded)
+BOILER_STATUS_CH_SCHEMA  = 0x100   // new — not exposed as a channel
+BOILER_STATUS_DHW_SCHEMA = 0x200   // new — resolves the previously-unknown 0x200 bit (below)
+```
+
+A read-only live check on 2026-09-14 found `boiler_status = 512 = 0x200` while idle (no CH/DHW
+demand) — consistent with `dhw_schema` being a static "which schedule currently governs" flag rather
+than a transient activity indicator (it doesn't clear just because nothing is actively firing),
+which is corroborating but not conclusive. **Not yet re-verified against a live CH or DHW heating
+cycle on this project's own test device** — the field bug report came from a different, separately
+deployed instance. Redeploying this fix and repeating that report's own verification steps (trigger
+a DHW cycle, confirm `DHWstatus` goes ON / `BurnerTarget` reads `dhw` / `Flame` goes ON with
+`ModulationLevel` > 0; repeat for CH) is the outstanding confirmation step.
+
+This also **closes the previously-unknown 0x200 bit** open question below — it's `dhw_schema`, not
+an undecoded activity bit.
 
 **`current` and `power_cons` units are UNKNOWN — not exposed as channels (2026-08-27 decision).** An
 earlier ÷100000 m³ gas-consumption conversion for `power_cons` was researched and never confirmed
@@ -652,7 +695,9 @@ show (user-supplied inventory) and added what was missing:
 
 - `heating#delta-temperature` — derived, `ch_water_temp − ch_return_temp`, no new device field.
 - `heating#central-heating-active` / `hotwater#hot-water-active` — `report.boiler_status` bits
-  `0x004`/`0x010`, already decoded into locals for `burner-target` but previously discarded. Mirrors
+  `0x004`/`0x010` (these bit values were themselves wrong, corrected 2026-09-14 to `0x002`/`0x004` —
+  see the `boiler_status` bitmask section above), already decoded into locals for `burner-target` but
+  previously discarded. Mirrors
   the portal's own "Status" section, which lists these two separately.
 - `hotwater#water-pressure` ← `report.dhw_water_pres` — pairs with the existing
   `heating#water-pressure`.
@@ -837,7 +882,7 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 |---|---|---|
 | `control.ch_mode_duration` | `control#extend-remaining` + `control#fireplace-remaining` | Mode-gated — only one of the two ever reads non-UNDEF at a time (see `updateChannels()`'s if/else-if chain on `ch_mode`). Same field, two differently-named views for discoverability per active mode. (A third view, `control#preset-mode-duration`, was removed in the final-review sweep — it was a literal duplicate of whichever of these two was active, with no distinct use case found.) |
 | `control.ch_mode_temp` | `heating#target-temperature` + `control#vacation-temperature` (during active holiday) | The device itself reuses this field as "whatever the currently active mode's live setpoint is" — reflecting that faithfully means both channels legitimately show it during holiday |
-| `report.boiler_status` | `heating#flame` (bit `0x100`) + `heating#burner-target` (bits `0x004`/`0x010`) + `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, same two bits again) | Disjoint bits of one bitmask, decoded into differently-shaped views (a single flame indicator, a prioritized "which one" string, and two independent booleans) — not redundant, each answers a different question |
+| `report.boiler_status` | `heating#flame` (bit `0x008`) + `heating#burner-target` (bits `0x002`/`0x004`) + `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, same two bits again) | Disjoint bits of one bitmask, decoded into differently-shaped views (a single flame indicator, a prioritized "which one" string, and two independent booleans) — not redundant, each answers a different question. Bit values corrected 2026-09-14, see above |
 | `control.vacation_duration` | `control#vacation-duration` directly, plus a derivation input to `control#vacation-end`/`control#vacation-remaining` | One raw value feeding one direct channel and two computed ones — standard derivation, not duplication |
 | `configuration.start_vacation` | `control#vacation-start` directly, plus a derivation input to `control#vacation-end`/`control#vacation-remaining` | Same pattern as above |
 | **The device's own duplicates**: `wd_k_factor`, `wd_exponent`, `mu` | Each appears in both `report.details` and `configuration` | Not the binding's doing — the device itself reports these three fields in two places. Neither location is exposed as a channel (all UNKNOWN, no cloud/app surface), so this causes no user-facing confusion, only a documentation note |
@@ -931,8 +976,9 @@ deliberately varied field.
    *this* device, so it remains unexposed. (The `base_temp`-vs-active-schedule-entry precedence
    question this was once suspected to gate is resolved by other means — see the `schedules` section —
    and no longer motivates resolving this one.)
-1. What is `boiler_status` bit `0x200` (observed set in the 2026-08-27 snapshot, not covered by any
-   currently-decoded bit)?
+1. ~~What is `boiler_status` bit `0x200`~~ **CLOSED, 2026-09-14.** It's `dhw_schema` (which schedule
+   currently governs, not an activity flag) — see the `boiler_status` bitmask correction above. Also
+   corrected two other wrong bit assignments (`CH_ACTIVE`, `FLAME`) found while investigating this.
 1. What are the true units of `report.current` and `report.power_cons`?
 1. What do `control.ch_status` (reads `1`) and `control.dhw_status` (reads `53`) enumerate? Neither
    is a simple boolean — `dhw_status=53` in particular suggests a bitmask or small state machine, not
