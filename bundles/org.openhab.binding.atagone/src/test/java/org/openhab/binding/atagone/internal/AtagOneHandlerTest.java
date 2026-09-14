@@ -202,14 +202,44 @@ class AtagOneHandlerTest {
     @Test
     void chAndDhwActiveDecodeDisjointBoilerStatusBits() throws IOException, ReflectiveOperationException {
         RetrieveReplyDTO reply = loadRetrieveReply();
-        // Fixture boiler_status = 268 = 0x10C: FLAME (0x100) + BURNER_ON (0x008) + CH_ACTIVE (0x004),
-        // DHW_ACTIVE (0x010) not set.
+        // Fixture boiler_status = 268 = 0x10C: CH_SCHEMA (0x100) + FLAME (0x008) + DHW_ACTIVE (0x004),
+        // CH_ACTIVE (0x002) not set — a real DHW-heating value, corrected 2026-09-14 (see
+        // AtagOneBindingConstants.BOILER_STATUS_*'s field comment for why the old bit assignments were
+        // wrong and produced exactly this fixture's value misclassified as CH-active).
         assertEquals(268, reply.report.boiler_status);
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(OnOffType.OFF, readState(CHANNEL_CH_ACTIVE));
+        assertEquals(OnOffType.ON, readState(CHANNEL_DHW_ACTIVE));
+        assertEquals(OnOffType.ON, readState(CHANNEL_FLAME));
+        assertEquals("dhw", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
+    }
+
+    @Test
+    void chActiveDecodesFromItsOwnBitOnly() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.report.boiler_status = BOILER_STATUS_CH_ACTIVE;
 
         invokeUpdateChannels(reply);
 
         assertEquals(OnOffType.ON, readState(CHANNEL_CH_ACTIVE));
         assertEquals(OnOffType.OFF, readState(CHANNEL_DHW_ACTIVE));
+        assertEquals(OnOffType.OFF, readState(CHANNEL_FLAME));
+        assertEquals("ch", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
+    }
+
+    @Test
+    void allBoilerStatusBitsClearDecodesToNoneAndOff() throws IOException, ReflectiveOperationException {
+        RetrieveReplyDTO reply = loadRetrieveReply();
+        reply.report.boiler_status = 0;
+
+        invokeUpdateChannels(reply);
+
+        assertEquals(OnOffType.OFF, readState(CHANNEL_CH_ACTIVE));
+        assertEquals(OnOffType.OFF, readState(CHANNEL_DHW_ACTIVE));
+        assertEquals(OnOffType.OFF, readState(CHANNEL_FLAME));
+        assertEquals("none", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
     }
 
     @Test

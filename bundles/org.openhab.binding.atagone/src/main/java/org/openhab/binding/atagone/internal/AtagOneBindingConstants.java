@@ -142,10 +142,28 @@ public class AtagOneBindingConstants {
     public static final int CH_CONTROL_MODE_ROOM = 0;
     public static final int CH_CONTROL_MODE_WEATHER = 1;
 
-    public static final int BOILER_STATUS_CH_ACTIVE = 0x004;
-    public static final int BOILER_STATUS_BURNER_ON = 0x008;
-    public static final int BOILER_STATUS_DHW_ACTIVE = 0x010;
-    public static final int BOILER_STATUS_FLAME = 0x100;
+    /*
+     * Corrected 2026-09-14 — the original values (CH_ACTIVE=0x004, DHW_ACTIVE=0x010, FLAME=0x100)
+     * were never independently verified against a real device cycle and were wrong: a genuine DHW
+     * heating event was observed (via persistence: DHW tank temperature rising, CH circuit flat,
+     * physical display confirming DHW) misclassified as "ch", while the flame channel never once
+     * indicated ON despite the burner clearly firing (91-100% modulation, boiler flow temperature
+     * spiking). Independently corroborated against
+     * https://github.com/kozmoz/atag-one-api/wiki/Thermostat-Protocol: "&512 = dhw_schema, &256 =
+     * ch_schema, &8 = boilerHeating, &4 = dhwHeating, &2 = chHeating" — that source's boilerHeating
+     * bit is exactly this binding's previously-unused BURNER_ON constant, and its dhwHeating bit is
+     * exactly the value this binding had mislabeled CH_ACTIVE, which explains the bug precisely. Not
+     * yet re-verified live against this specific device's own CH/DHW cycle (see DEVELOPERS.md).
+     */
+    public static final int BOILER_STATUS_CH_ACTIVE = 0x002;
+    public static final int BOILER_STATUS_DHW_ACTIVE = 0x004;
+    public static final int BOILER_STATUS_FLAME = 0x008;
+    /**
+     * "Which schedule (CH or DHW) is currently governing" — not an activity flag; resolves the previously-unknown 0x200
+     * bit. Not currently exposed as a channel.
+     */
+    public static final int BOILER_STATUS_CH_SCHEMA = 0x100;
+    public static final int BOILER_STATUS_DHW_SCHEMA = 0x200;
 
     public static final Map<Integer, String> CH_MODE_NAMES = Map.of(CH_MODE_MANUAL, "manual", CH_MODE_AUTO, "auto",
             CH_MODE_HOLIDAY, "holiday", CH_MODE_EXTEND, "extend", CH_MODE_FIREPLACE, "fireplace");
