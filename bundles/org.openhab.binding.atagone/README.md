@@ -76,6 +76,15 @@ above); `heating#control-mode`'s values `room`/`weather` → `thermostat`/`weath
 These are item _state_ value changes, not channel renames — no re-linking needed, but any rule
 comparing against the old string values must be updated.
 
+**Also breaking, same delete-and-re-add requirement as above:** `heating#shown-set-temperature` and
+`control#preset-mode-duration` were removed (redundant with other channels, see below); item type
+changed on `device#wifi-signal` (`Number:Power` → `Number:Dimensionless`, now a 0–4 quality scale
+instead of raw dBm), `hotwater#legionella-protection-time` (`Number:Time` → `String`, now `HH:mm`),
+and `device#language` (`Number` → `String`, now a decoded name). An already-initialized Thing keeps
+the old item type and channel list baked in regardless of what the new jar's thing-type declares —
+delete and re-add the Thing, then re-link every item to these channels (they'll otherwise fail to
+accept new states, or keep showing a channel that no longer exists).
+
 ## Thing Properties
 
 Populated from the device once it's paired, matching the portal's Account → Devices screen:
