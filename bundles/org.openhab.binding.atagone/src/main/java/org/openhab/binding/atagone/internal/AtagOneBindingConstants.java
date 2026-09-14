@@ -153,7 +153,7 @@ public class AtagOneBindingConstants {
      * ch_schema, &8 = boilerHeating, &4 = dhwHeating, &2 = chHeating" — that source's boilerHeating
      * bit is exactly this binding's previously-unused BURNER_ON constant, and its dhwHeating bit is
      * exactly the value this binding had mislabeled CH_ACTIVE, which explains the bug precisely. Not
-     * yet re-verified live against this specific device's own CH/DHW cycle (see DEVELOPERS.md).
+     * yet re-verified live against this specific device's own CH/DHW cycle.
      */
     public static final int BOILER_STATUS_CH_ACTIVE = 0x002;
     public static final int BOILER_STATUS_DHW_ACTIVE = 0x004;

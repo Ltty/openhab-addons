@@ -2,9 +2,6 @@
 
 This binding integrates the [ATAG ONE](https://www.atag.nl/producten/thermostaten/atag-one) smart thermostat with openHAB via its local HTTP API, without requiring any cloud connection or MQTT broker.
 
-For the underlying local API's field reference, write semantics, and verification status of each
-protocol detail, see [DEVELOPERS.md](DEVELOPERS.md).
-
 ## Supported Things
 
 | Thing ID | Description |

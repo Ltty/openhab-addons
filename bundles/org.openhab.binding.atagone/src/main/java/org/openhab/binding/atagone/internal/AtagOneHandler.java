@@ -782,9 +782,9 @@ public class AtagOneHandler extends BaseThingHandler {
                 if (command instanceof StringType s) {
                     /*
                      * Only "berlin" (1) is device-confirmed; the other 9 values are inferred from the
-                     * app/portal dropdown order only (see DEVELOPERS.md). Accepted here regardless —
-                     * this binding's owner is the device's owner and can choose to exercise that risk —
-                     * but never self-assumed correct by this binding.
+                     * app/portal dropdown order only. Accepted here regardless — this binding's owner
+                     * is the device's owner and can choose to exercise that risk — but never
+                     * self-assumed correct by this binding.
                      */
                     Integer timeZone = TIME_ZONE_BY_NAME.get(s.toString().toLowerCase());
                     if (timeZone == null || !fillConfigBundle(configDto)) {
