@@ -191,11 +191,11 @@ unused. Candidate for exposure; see Gap analysis.
 | `ch_return_temp` | double | °C | R | `heating#return-temperature`, also feeds `heating#delta-temperature` (Phase I: `ch_water_temp − ch_return_temp`) | VERIFIED |
 | `boiler_status` | int (bitmask) | — | R | `heating#flame`, `heating#burner-target` (decoded), plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) | Bit assignments CORRECTED 2026-09-14 (were wrong since Phase 3) — see below |
 | `boiler_config` | int (bitmask) | — | R | — | UNKNOWN |
-| `ch_time_to_temp` | int | s | R | `heating#time-to-target` | VERIFIED |
+| `ch_time_to_temp` | int | s | R | `heating#time-to-target` (published in minutes, 2026-09-14 — raw seconds is an awkward display unit and `Number:Time` items don't format sub-hour durations well in whole hours) | VERIFIED |
 | `shown_set_temp` | double | °C | R | — (removed, final-review sweep 2026-09-13 — every live sample matched `heating#target-temperature` exactly and no ATAG surface justified keeping a second channel for it) | VERIFIED, but redundant with `control.ch_mode_temp` in every case observed |
 | `power_cons` | int | ? | R | — (deliberately not exposed) | UNKNOWN unit — see below |
 | `tout_avg` | double | °C | R | `heating#average-outside-temperature` | VERIFIED |
-| `rssi` | int | dBm (negated) | R | `device#wifi-signal` | VERIFIED |
+| `rssi` | int | dBm (negated) | R | `device#wifi-signal` (bucketed into a 0-4 quality scale, 2026-09-14 — see below) | VERIFIED |
 | `current` | int | ? | R | — (deliberately not exposed) | UNKNOWN unit — see below |
 | `voltage` | int | mV or V | R | `device#voltage` | VERIFIED shape (auto-scales: >1000 treated as mV) |
 | `charge_status` | int | — | R | — | UNKNOWN |
@@ -266,6 +266,21 @@ paired with `voltage`. With no way to verify either interpretation against this 
 are read into the DTO but deliberately not published as channels, rather than exposing a raw number
 with a misleading or absent unit. Revisit if a verification method turns up.
 
+**`device#wifi-signal` bucketed into a 0-4 quality scale instead of raw dBm (2026-09-14).** Published
+as `new QuantityType<>(-rssi, Units.DECIBEL_MILLIWATTS)` on a `Number:Power` item since Phase 3 — this
+looked correct in source but rendered wrong in Main UI: `Number:Power`'s system/base unit is the watt,
+and without something pinning the display unit to dBm specifically, the widget silently converted the
+logarithmic dBm value as if it were linear watts (confirmed against a live report: the math for two
+observed values matched exactly). Rather than fight openHAB's UoM system over a unit conversion that's
+only valid because both units happen to share a "Power" dimension despite being physically
+incompatible representations, retyped the channel entirely to `Number:Dimensionless` with a 0-4
+`state.options` scale (no signal/weak/average/good/excellent), mirroring an existing convention from a
+different binding's WiFi-signal item (category `QualityOfService`). Thresholds
+(`classifyWifiSignal()`): ≥−50 dBm excellent, ≥−60 good, ≥−70 average, ≥−80 weak, else no signal —
+reasonable, commonly-used RSSI bands, not device-specific-verified. Existing openHAB items linked to
+this channel need deleting and recreating (`Number`/`Number:Dimensionless`) and relinking — same
+breaking-change note as any other channel type change in this binding.
+
 ### `report.details` block (25 fields) — boiler regulation internals
 
 None of these have any counterpart in the cloud portal's EditDevice form or the app's settings tree.
@@ -332,11 +347,11 @@ correctly, documented in full under Write semantics below.
 | `download_url` | string | — | R | `deviceId`/`serialNumber`/`vendor`/`firmwareVersion`/`boilerDetectType`/`installerId` Thing properties (Phase H) | VERIFIED — firmware version embeddable (`…/R60` → `R60`) |
 | `boiler_id` | string | — | R | `serialNumber` Thing property (Phase H) | VERIFIED |
 | `boiler_det_type` | int | — | R | `boilerDetectType` Thing property (Phase H) | UNKNOWN meaning — exposed as the raw integer, no model name invented |
-| `language` | int enum | — | INFERRED W (app) | `device#language` (Phase F) | VERIFIED `0=English, 1=Dutch, 2=French, 3=Italian, 4=German` — device reads `4`, display confirmed set to German |
+| `language` | int enum | — | INFERRED W (app) | `device#language`, read-only, decoded to a name (`english`/`dutch`/`french`/`italian`/`german`, 2026-09-14 — was a raw `DecimalType` before) | VERIFIED `0=English, 1=Dutch, 2=French, 3=Italian, 4=German` — device reads `4`, display confirmed set to German |
 | `pressure_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=bar, 1=psi` from javadoc; reads 0, alternate branch untested |
 | `temp_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=°C, 1=°F`; reads 0, alternate branch untested |
 | `time_format` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=24h, 1=12h`; reads 1 |
-| `time_zone` | int enum | — | **W** (cloud) | `device#time-zone`, read-only (Phase F) | PARTIAL — `1=Berlin` VERIFIED (cloud form + device agree); other 9 values INFERRED from dropdown order only |
+| `time_zone` | int enum | — | **W** (cloud) | `device#time-zone`, **writable 2026-09-14** (was read-only — reversed on explicit owner request, see the decision note below) | PARTIAL — `1=Berlin` VERIFIED (cloud form + device agree); other 9 values INFERRED from dropdown order only |
 | `summer_eco_mode` | int (bool-ish) | — | **W** (cloud) | `heating#summer-eco-mode` (Phase F) | VERIFIED shape; `1=on` INFERRED |
 | `summer_eco_temp` | double | °C | **W** (cloud) | `heating#summer-eco-temperature` (Phase F) | VERIFIED |
 | `shower_time_mode` | int | — | R | — | UNKNOWN — no cloud/app surface found |
@@ -351,7 +366,7 @@ correctly, documented in full under Write semantics below.
 | `climate_zone` | double | °C | **W** (cloud) | `heating#climate-zone` (Phase F) | VERIFIED reads; manual's guidance value is −12°C (this device reads −10) |
 | `wd_temp_offs` | double | °C | **W** (cloud) | `heating#wd-temperature-shift` (Phase J) | VERIFIED range (±10°C, manual p. 17/39, "Temperature shift"/"Temperature correction") — a wider range than the other two offsets, which is the live discriminator Phase J uses |
 | `dhw_legion_day` | int enum | — | **W** (cloud) | `hotwater#legionella-protection-day` (Phase F) | VERIFIED `1=Monday…7=Sunday` — cloud form shows `7` as "Sonntag", device agrees |
-| `dhw_legion_time` | int | min since midnight | **W** (cloud) | `hotwater#legionella-protection-time` (Phase F) | VERIFIED — `420` = 07:00, matches cloud form |
+| `dhw_legion_time` | int | min since midnight | **W** (cloud) | `hotwater#legionella-protection-time`, shown as `HH:mm` (2026-09-14 — was a raw minutes-since-midnight `Number:Time`, unreadable as a time of day; `String` with `formatTimeOfDay()`/`parseTimeOfDay()` instead, since openHAB has no clock-time item type) | VERIFIED — `420` = 07:00, matches cloud form |
 | `dhw_boiler_cap` | int | kW (presumed) | R | — | UNKNOWN — reads 0 |
 | `ch_building_size` | int enum | — | **W** (cloud) | `heating#building-size` (Phase F) | VERIFIED `1=small, 2=medium, 3=large` — device=2, cloud shows "medium"; matches manual p. 14 exactly |
 | `ch_heating_type` | int enum | — | **W** (cloud) | `heating#heating-type` (Phase F) | VERIFIED 6-value enum — device=5, cloud shows "underfloor"; matches manual p. 14 exactly |
@@ -869,8 +884,8 @@ readings).
 | `dhw_legion_enabled`/`_day`/`_time` | `hotwater` | advanced, writable |
 | `ch_mode_vacation`, `ch_mode_extend` | `control` | advanced — preset defaults, not subsystem settings |
 | `disp_brightness` | `device` | advanced, writable — VERIFIED via its own dedicated live test, separate from the rest of the Phase F group |
-| `time_zone` | `device` | advanced, **read-only** — only `1=Berlin` is verified; the other 9 enum values are inferred from dropdown order only, and writing an unverified enum to device config is the exact risk class that has caused live incidents in this project before. Exposed read-only regardless: schedule timing depends on it |
-| `language` | `device` | advanced, **read-only** — enum is verified for this device (`4=German`), but changing the thermostat's display language from openHAB has near-zero automation value |
+| `time_zone` | `device` | advanced, **made writable 2026-09-14** (was read-only) — only `1=Berlin` is device-verified; the other 9 enum values are inferred from dropdown order only, which is the exact risk class that has caused live incidents in this project before, so **the binding never treats them as verified even though it now accepts writing them**. Reversed at the explicit request of this device's own owner, who accepts that risk for their own device; the field comment on `AtagOneBindingConstants.TIME_ZONE_BY_NAME`'s use site and the channel description both carry the caveat forward |
+| `language` | `device` | advanced, **read-only** (unchanged) — enum is verified for this device (`4=German`), but changing the thermostat's display language from openHAB has near-zero automation value. Now decoded to a name instead of a raw integer (2026-09-14) |
 | `dhw_min_set`/`dhw_max_set`, `ch_min_set`/`ch_max_set` | — | Not channels: dynamic state description provider (see above) |
 | `boiler_id`, `installer_id`, firmware version | — | Not channels: Thing properties (see above) |
 
