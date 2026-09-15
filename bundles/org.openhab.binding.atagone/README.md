@@ -82,6 +82,15 @@ the old item type and channel list baked in regardless of what the new jar's thi
 delete and re-add the Thing, then re-link every item to these channels (they'll otherwise fail to
 accept new states, or keep showing a channel that no longer exists).
 
+**Also breaking, same requirement again:** `hotwater#water-pressure`, `heating#burner-target`,
+`heating#regulation-state`, `heating#min-modulation-level`, `heating#max-boiler-temperature`,
+`control#vacation-duration-default`, and `control#extend-duration-default` were removed — each was
+either a constant reading with no ATAG-side settings surface, redundant with another channel, or an
+unverifiable inferred value (see the channel tables below for what replaces them, where anything
+does). The `boilerDetectType` Thing property was removed too — it was never actually confirmed to be
+a boiler _type_ rather than a detection-method flag, and no mapping to a real model name (e.g.
+"A160S") was ever found. `device#language` is now writable.
+
 ## Thing Properties
 
 Populated from the device once it's paired, matching the portal's Account → Devices screen:
@@ -92,7 +101,6 @@ Populated from the device once it's paired, matching the portal's Account → De
 | `serialNumber` | Boiler serial number (P-number) |
 | `vendor` | Always `ATAG` |
 | `firmwareVersion` | Firmware version, parsed from the device's update-check URL |
-| `boilerDetectType` | Device-reported boiler detection type (raw integer, meaning not decoded) |
 | `installerId` | Installer identifier, if the installer has registered one on the device |
 
 ## Channels
@@ -116,8 +124,6 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `control#extend-remaining` | `Number:Time` | R | Time remaining in the current extend session (advanced) |
 | `control#fireplace-duration` | `Number:Time` | RW | Fireplace mode duration in hours, 1–24 — **value-setter only**, writing it does not activate fireplace mode. Reverts to the factory default (1 h) on cancel |
 | `control#fireplace-remaining` | `Number:Time` | R | Time remaining in the current fireplace session (advanced) |
-| `control#vacation-duration-default` | `Number:Time` | RW | Stored default vacation duration used when holiday mode starts with no explicit duration (advanced) |
-| `control#extend-duration-default` | `Number:Time` | RW | Stored default extend duration used when extend mode starts with no explicit duration, in 15-minute increments (advanced) |
 | `control#next-schedule-time` | `DateTime` | R | When the central heating schedule's next entry starts (advanced) |
 | `control#next-schedule-temperature` | `Number:Temperature` | R | Setpoint the central heating schedule's next entry sets (advanced) |
 
@@ -136,10 +142,8 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#water-setpoint` | `Number:Temperature` | R | Boiler Target Water Temperature (advanced) |
 | `heating#control-mode` | `String` | RW | `thermostat` (room-sensor setpoint control) or `weather-dependent` (weather-compensated heating curve) — independent of `preset-mode` (advanced) |
 | `heating#flame` | `Switch` | R | Burner flame active |
-| `heating#burner-target` | `String` | R | `none`, `ch`, or `dhw` |
 | `heating#central-heating-active` | `Switch` | R | ON when the boiler is actively serving central heating demand |
 | `heating#weather-temperature` | `Number:Temperature` | R | Outside temperature from the local weather service (advanced) |
-| `heating#regulation-state` | `Switch` | R | Whether the weather-compensation regulation algorithm is active — inferred, not device-confirmed (advanced) |
 | `heating#modulation-level` | `Number:Dimensionless` | R | Burner modulation level (%) |
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
@@ -162,7 +166,6 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 |------------|------|----|-------------|
 | `hotwater#target-temperature` | `Number:Temperature` | R | Hot Water Target Temperature — reflects the active schedule period |
 | `hotwater#temperature` | `Number:Temperature` | R | Hot Water Temperature |
-| `hotwater#water-pressure` | `Number:Pressure` | R | DHW circuit water pressure (advanced) |
 | `hotwater#hot-water-active` | `Switch` | R | ON when the boiler is actively serving hot water demand |
 | `hotwater#schedule-base-temperature` | `Number:Temperature` | RW | Hot water schedule's fallback temperature — its bounds come from the device (10–65 °C on a combi boiler, wider on a system boiler with a 3-port valve kit) (advanced) |
 | `hotwater#legionella-protection` | `Switch` | RW | Periodically heats the tank above a threshold to kill legionella bacteria (advanced) |
@@ -175,7 +178,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 |------------|------|----|-------------|
 | `device#display-brightness` | `Number:Dimensionless` | RW | Thermostat display brightness, 10–100% (advanced) |
 | `device#time-zone` | `String` | RW | Configured time zone. Only `berlin` is device-confirmed; the other 9 cities are unverified — write at your own risk (advanced) |
-| `device#language` | `String` | R | Display language: `english`, `dutch`, `french`, `italian`, or `german` (advanced) |
+| `device#language` | `String` | RW | Display language: `english`, `dutch`, `french`, `italian`, or `german` — verified against the app (advanced) |
 | `device#wifi-signal` | `Number:Dimensionless` | R | WiFi signal quality, `0` (no signal) to `4` (excellent) — bucketed rather than raw dBm, since openHAB has no display unit to pin dBm to and would otherwise render it as watts (advanced) |
 
 Further advanced diagnostic channels in the Device group (power supply, controller health) are also
@@ -203,9 +206,13 @@ device itself treats a duration field written alone.
 | `manual` | Hold the current target temperature indefinitely, ignoring the schedule. Reuses whichever temperature `target-temperature` last reported |
 | `holiday` | Hold a fixed low temperature for the vacation period, using the currently stored `vacation-duration` (or the device's own configured default if none has been set) |
 | `fireplace` | Temporarily reduce setpoint (fireplace warmth compensation), using the currently stored `fireplace-duration` (or 1 hour if none has been set) |
-| `extend` | Temporarily extend the current schedule block, using the currently stored `extend-duration` as **additional** time on top of whatever's left until the device's next programmed schedule change — not an absolute session length |
+| `extend` | Temporarily extend the current schedule block, using the currently stored `extend-duration` as **additional** time on top of whatever's left until the device's next programmed schedule change — not an absolute session length (or the device's own configured default if none has been set) |
 
 Writing an unknown value is rejected with a warning and the item reverts to its last known state.
+
+The "device's own configured default" for holiday and extend isn't itself a channel — it's a fixed
+value the device stores and this binding reads once per poll, purely as the fallback used when
+activating that mode with no duration set. There's nothing to configure from openHAB's side.
 
 To activate a mode with a **custom** duration in a single write, instead of first writing the duration
 channel and then `preset-mode`, use the [Actions](#actions) below.

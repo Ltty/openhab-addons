@@ -214,7 +214,6 @@ class AtagOneHandlerTest {
         assertEquals(OnOffType.OFF, readState(CHANNEL_CH_ACTIVE));
         assertEquals(OnOffType.ON, readState(CHANNEL_DHW_ACTIVE));
         assertEquals(OnOffType.ON, readState(CHANNEL_FLAME));
-        assertEquals("dhw", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
     }
 
     @Test
@@ -227,7 +226,6 @@ class AtagOneHandlerTest {
         assertEquals(OnOffType.ON, readState(CHANNEL_CH_ACTIVE));
         assertEquals(OnOffType.OFF, readState(CHANNEL_DHW_ACTIVE));
         assertEquals(OnOffType.OFF, readState(CHANNEL_FLAME));
-        assertEquals("ch", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
     }
 
     @Test
@@ -240,17 +238,6 @@ class AtagOneHandlerTest {
         assertEquals(OnOffType.OFF, readState(CHANNEL_CH_ACTIVE));
         assertEquals(OnOffType.OFF, readState(CHANNEL_DHW_ACTIVE));
         assertEquals(OnOffType.OFF, readState(CHANNEL_FLAME));
-        assertEquals("none", ((StringType) readState(CHANNEL_BURNER_TARGET)).toString());
-    }
-
-    @Test
-    void dhwWaterPressureIsReadFromReportBlock() throws IOException, ReflectiveOperationException {
-        RetrieveReplyDTO reply = loadRetrieveReply();
-
-        invokeUpdateChannels(reply);
-
-        QuantityType<?> pressure = (QuantityType<?>) readState(CHANNEL_DHW_WATER_PRESSURE);
-        assertEquals(reply.report.dhw_water_pres, pressure.doubleValue(), 0.001);
     }
 
     @Test
@@ -261,16 +248,6 @@ class AtagOneHandlerTest {
 
         QuantityType<?> weatherTemp = (QuantityType<?>) readState(CHANNEL_WEATHER_TEMPERATURE);
         assertEquals(reply.control.weather_temp, weatherTemp.doubleValue(), 0.001);
-    }
-
-    @Test
-    void regulationStateIsReadFromReportDetails() throws IOException, ReflectiveOperationException {
-        RetrieveReplyDTO reply = loadRetrieveReply();
-        assertEquals(1, reply.report.details.regulation_state);
-
-        invokeUpdateChannels(reply);
-
-        assertEquals(OnOffType.ON, readState(CHANNEL_REGULATION_STATE));
     }
 
     @Test
@@ -914,6 +891,28 @@ class AtagOneHandlerTest {
     }
 
     @Test
+    void languageWriteBundlesFullConfiguration() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        boolean accepted = handler.buildControlUpdate(CHANNEL_LANGUAGE, new StringType("german"), control,
+                configUpdate);
+
+        assertTrue(accepted);
+        assertEquals(4, configUpdate.language);
+    }
+
+    @Test
+    void languageWriteRejectsUnknownValue() throws ReflectiveOperationException {
+        seedLastConfiguration(sampleConfiguration());
+        ControlUpdateDTO control = new ControlUpdateDTO();
+        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
+
+        assertFalse(handler.buildControlUpdate(CHANNEL_LANGUAGE, new StringType("klingon"), control, configUpdate));
+    }
+
+    @Test
     void unhandledChannelIsRejected() {
         ControlUpdateDTO control = new ControlUpdateDTO();
         DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
@@ -1090,8 +1089,6 @@ class AtagOneHandlerTest {
         reply.control.vacation_duration = 3 * 86400L;
         reply.control.extend_duration = 2 * 3600L;
         reply.control.fireplace_duration = 5 * 3600L;
-        reply.configuration.ch_mode_vacation = 7 * 86400L;
-        reply.configuration.ch_mode_extend = 90 * 60L;
 
         invokeUpdateChannels(reply);
 
@@ -1104,12 +1101,6 @@ class AtagOneHandlerTest {
         QuantityType<?> fireplace = (QuantityType<?>) readState(CHANNEL_FIREPLACE_DURATION);
         assertEquals(Units.HOUR, fireplace.getUnit());
         assertEquals(5.0, fireplace.doubleValue(), 0.001);
-        QuantityType<?> vacationDefault = (QuantityType<?>) readState(CHANNEL_VACATION_DURATION_DEFAULT);
-        assertEquals(Units.DAY, vacationDefault.getUnit());
-        assertEquals(7.0, vacationDefault.doubleValue(), 0.001);
-        QuantityType<?> extendDefault = (QuantityType<?>) readState(CHANNEL_EXTEND_DURATION_DEFAULT);
-        assertEquals(Units.MINUTE, extendDefault.getUnit());
-        assertEquals(90.0, extendDefault.doubleValue(), 0.001);
     }
 
     @Test
@@ -1326,32 +1317,6 @@ class AtagOneHandlerTest {
                 control, configUpdate));
         assertFalse(handler.buildControlUpdate(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType("25:00"), control,
                 configUpdate));
-    }
-
-    @Test
-    void vacationDurationDefaultWriteConvertsToSeconds() throws ReflectiveOperationException {
-        seedLastConfiguration(sampleConfiguration());
-        ControlUpdateDTO control = new ControlUpdateDTO();
-        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
-
-        boolean accepted = handler.buildControlUpdate(CHANNEL_VACATION_DURATION_DEFAULT,
-                new QuantityType<>(10, Units.DAY), control, configUpdate);
-
-        assertTrue(accepted);
-        assertEquals(10 * 86400L, configUpdate.ch_mode_vacation);
-    }
-
-    @Test
-    void extendDurationDefaultWriteConvertsToSeconds() throws ReflectiveOperationException {
-        seedLastConfiguration(sampleConfiguration());
-        ControlUpdateDTO control = new ControlUpdateDTO();
-        DeviceConfigUpdateDTO configUpdate = new DeviceConfigUpdateDTO();
-
-        boolean accepted = handler.buildControlUpdate(CHANNEL_EXTEND_DURATION_DEFAULT,
-                new QuantityType<>(3, Units.HOUR), control, configUpdate);
-
-        assertTrue(accepted);
-        assertEquals(3 * 3600L, configUpdate.ch_mode_extend);
     }
 
     @Test

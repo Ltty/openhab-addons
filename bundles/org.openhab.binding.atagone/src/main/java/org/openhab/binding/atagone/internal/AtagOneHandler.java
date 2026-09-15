@@ -795,6 +795,17 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
+            case CHANNEL_LANGUAGE:
+                if (command instanceof StringType s) {
+                    Integer language = LANGUAGE_BY_NAME.get(s.toString().toLowerCase());
+                    if (language == null || !fillConfigBundle(configDto)) {
+                        return false;
+                    }
+                    configDto.language = language;
+                    return true;
+                }
+                return false;
+
             case CHANNEL_BUILDING_SIZE:
                 if (command instanceof StringType s) {
                     Integer size = BUILDING_SIZE_BY_NAME.get(s.toString().toLowerCase());
@@ -871,28 +882,6 @@ public class AtagOneHandler extends BaseThingHandler {
                 }
                 return false;
 
-            case CHANNEL_VACATION_DURATION_DEFAULT:
-                if (command instanceof QuantityType<?> qt) {
-                    QuantityType<?> seconds = qt.toUnit(Units.SECOND);
-                    if (seconds == null || !fillConfigBundle(configDto)) {
-                        return false;
-                    }
-                    configDto.ch_mode_vacation = seconds.longValue();
-                    return true;
-                }
-                return false;
-
-            case CHANNEL_EXTEND_DURATION_DEFAULT:
-                if (command instanceof QuantityType<?> qt) {
-                    QuantityType<?> seconds = qt.toUnit(Units.SECOND);
-                    if (seconds == null || !fillConfigBundle(configDto)) {
-                        return false;
-                    }
-                    configDto.ch_mode_extend = seconds.longValue();
-                    return true;
-                }
-                return false;
-
             case CHANNEL_DISPLAY_BRIGHTNESS:
                 if (command instanceof QuantityType<?> qt) {
                     QuantityType<?> percent = qt.toUnit(Units.PERCENT);
@@ -947,6 +936,7 @@ public class AtagOneHandler extends BaseThingHandler {
         configDto.ch_mode_vacation = config.ch_mode_vacation;
         configDto.ch_mode_extend = config.ch_mode_extend;
         configDto.time_zone = config.time_zone;
+        configDto.language = config.language;
         configDto.dhw_legion_enabled = config.dhw_legion_enabled;
         configDto.dhw_legion_day = config.dhw_legion_day;
         configDto.dhw_legion_time = config.dhw_legion_time;
@@ -1246,7 +1236,6 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_DELTA_TEMPERATURE,
                 new QuantityType<>(r.report.ch_water_temp - r.report.ch_return_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_CH_WATER_PRESSURE, new QuantityType<>(r.report.ch_water_pres, Units.BAR));
-        updateIfChanged(CHANNEL_DHW_WATER_PRESSURE, new QuantityType<>(r.report.dhw_water_pres, Units.BAR));
         updateIfChanged(CHANNEL_CH_SETPOINT, new QuantityType<>(r.report.ch_setpoint, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_DHW_TEMPERATURE, new QuantityType<>(r.report.dhw_water_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_AVERAGE_OUTSIDE_TEMPERATURE, new QuantityType<>(r.report.tout_avg, SIUnits.CELSIUS));
@@ -1257,7 +1246,6 @@ public class AtagOneHandler extends BaseThingHandler {
         boolean chActive = (r.report.boiler_status & BOILER_STATUS_CH_ACTIVE) != 0;
         boolean dhwActive = (r.report.boiler_status & BOILER_STATUS_DHW_ACTIVE) != 0;
         updateIfChanged(CHANNEL_FLAME, OnOffType.from(flame));
-        updateIfChanged(CHANNEL_BURNER_TARGET, new StringType(dhwActive ? "dhw" : chActive ? "ch" : "none"));
         updateIfChanged(CHANNEL_CH_ACTIVE, OnOffType.from(chActive));
         updateIfChanged(CHANNEL_DHW_ACTIVE, OnOffType.from(dhwActive));
         updateIfChanged(CHANNEL_MODULATION_LEVEL, new QuantityType<>(r.report.details.rel_mod_level, Units.PERCENT));
@@ -1285,14 +1273,9 @@ public class AtagOneHandler extends BaseThingHandler {
         // units and meaning could not be verified against this device.
         updateIfChanged(CHANNEL_DHW_FLOW_RATE, new QuantityType<>(r.report.dhw_flow_rate, Units.LITRE_PER_MINUTE));
         updateIfChanged(CHANNEL_RESETS, new DecimalType(r.report.resets));
-        updateIfChanged(CHANNEL_MEMORY_ALLOCATION, new DecimalType(r.report.memory_allocation));
         updateIfChanged(CHANNEL_BOILER_TEMPERATURE, new QuantityType<>(r.report.details.boiler_temp, SIUnits.CELSIUS));
         updateIfChanged(CHANNEL_BOILER_RETURN_TEMPERATURE,
                 new QuantityType<>(r.report.details.boiler_return_temp, SIUnits.CELSIUS));
-        updateIfChanged(CHANNEL_MODULATION_MIN, new QuantityType<>(r.report.details.min_mod_level, Units.PERCENT));
-        updateIfChanged(CHANNEL_MAX_BOILER_TEMPERATURE,
-                new QuantityType<>(r.report.details.max_boiler_temp, SIUnits.CELSIUS));
-        updateIfChanged(CHANNEL_REGULATION_STATE, OnOffType.from(r.report.details.regulation_state == 1));
         updateIfChanged(CHANNEL_REPORT_TIME, new DateTimeType(AtagEpoch.toZonedDateTime(r.report.report_time)));
 
         // Schedules — fallback setpoints outside any active entry
@@ -1393,10 +1376,6 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_DAY,
                 new StringType(WEEKDAY_NAMES.getOrDefault(config.dhw_legion_day, "unknown")));
         updateIfChanged(CHANNEL_LEGIONELLA_PROTECTION_TIME, new StringType(formatTimeOfDay(config.dhw_legion_time)));
-        updateIfChanged(CHANNEL_VACATION_DURATION_DEFAULT,
-                new QuantityType<>(config.ch_mode_vacation / (double) SECONDS_PER_DAY, Units.DAY));
-        updateIfChanged(CHANNEL_EXTEND_DURATION_DEFAULT,
-                new QuantityType<>(config.ch_mode_extend / (double) SECONDS_PER_MINUTE, Units.MINUTE));
         updateIfChanged(CHANNEL_DISPLAY_BRIGHTNESS, new QuantityType<>(config.disp_brightness, Units.PERCENT));
         updateIfChanged(CHANNEL_TIME_ZONE, new StringType(TIME_ZONE_NAMES.getOrDefault(config.time_zone, "unknown")));
         updateIfChanged(CHANNEL_LANGUAGE, new StringType(LANGUAGE_NAMES.getOrDefault(config.language, "unknown")));
@@ -1474,7 +1453,6 @@ public class AtagOneHandler extends BaseThingHandler {
         if (!r.configuration.installer_id.isEmpty()) {
             updateProperty(PROPERTY_INSTALLER_ID, r.configuration.installer_id);
         }
-        updateProperty(PROPERTY_BOILER_DETECT_TYPE, String.valueOf(r.configuration.boiler_det_type));
         updateProperty(Thing.PROPERTY_VENDOR, "ATAG");
         String firmwareVersion = parseFirmwareVersion(r.configuration.download_url);
         if (firmwareVersion != null) {
