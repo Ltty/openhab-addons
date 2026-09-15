@@ -180,6 +180,57 @@ class ScheduleJsonTest {
     }
 
     @Test
+    void parseRejectsInputLongerThanTheMaxLength() {
+        String hugeJson = "{\"days\":{\"monday\":[" + "a".repeat(20_000) + "]}}";
+
+        assertNull(ScheduleJson.parse(hugeJson, 22.5, new double[7][][]));
+    }
+
+    @Test
+    void parseRejectsDeeplyNestedInputInsteadOfOverflowingTheStack() {
+        // Compact-but-deep nesting can blow the parsing thread's stack well under any reasonable
+        // input-length cap — must fail cleanly (null), not propagate a StackOverflowError.
+        StringBuilder nested = new StringBuilder();
+        for (int i = 0; i < 10_000; i++) {
+            nested.append('[');
+        }
+        String json = "{\"days\":{\"monday\":" + nested + "}}";
+
+        assertDoesNotThrow(() -> assertNull(ScheduleJson.parse(json, 22.5, new double[7][][])));
+    }
+
+    @Test
+    void parseRejectsMoreThanTheMaxPeriodsInADay() {
+        StringBuilder periods = new StringBuilder();
+        for (int i = 0; i < 101; i++) {
+            if (i > 0) {
+                periods.append(',');
+            }
+            periods.append("{\"start\":0,\"end\":1,\"temp\":20}");
+        }
+        String json = "{\"days\":{\"monday\":[" + periods + "]}}";
+
+        assertNull(ScheduleJson.parse(json, 22.5, new double[7][][]));
+    }
+
+    @Test
+    void parseAcceptsExactlyTheMaxPeriodsInADay() {
+        StringBuilder periods = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            if (i > 0) {
+                periods.append(',');
+            }
+            periods.append("{\"start\":0,\"end\":1,\"temp\":20}");
+        }
+        String json = "{\"days\":{\"monday\":[" + periods + "]}}";
+
+        ScheduleDTO parsed = ScheduleJson.parse(json, 22.5, new double[7][][]);
+
+        assertNotNull(parsed);
+        assertEquals(100, parsed.entries[0].length);
+    }
+
+    @Test
     void isValidPeriodAcceptsBoundaryValues() {
         assertTrue(ScheduleJson.isValidPeriod(0, 1440));
         assertTrue(ScheduleJson.isValidPeriod(0, 1));

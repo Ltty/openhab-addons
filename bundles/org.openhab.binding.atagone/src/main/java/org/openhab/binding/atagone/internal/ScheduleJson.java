@@ -47,6 +47,15 @@ public final class ScheduleJson {
 
     private static final Gson GSON = new GsonBuilder().create();
 
+    /**
+     * Upper bound on {@code parse}'s input, generous over a real full week (a few KB at most) but
+     * small enough to reject a deliberately oversized payload before it's even handed to the parser.
+     */
+    private static final int MAX_INPUT_LENGTH = 16 * 1024;
+
+    /** Upper bound on periods accepted for a single weekday — real schedules hold at most a handful. */
+    private static final int MAX_PERIODS_PER_DAY = 100;
+
     private ScheduleJson() {
     }
 
@@ -81,12 +90,16 @@ public final class ScheduleJson {
      * {@code currentEntries} unchanged — the device requires the whole schedule object on every
      * write regardless, so this lets a caller save just the day(s) it actually edited in one call.
      *
-     * @return the composed schedule ready to send, or {@code null} if the input is malformed, names
-     *         an unrecognized weekday, names a weekday beyond {@code currentEntries.length}, or
-     *         contains a period failing {@link #isValidPeriod}
+     * @return the composed schedule ready to send, or {@code null} if the input is malformed, exceeds
+     *         {@link #MAX_INPUT_LENGTH} or {@link #MAX_PERIODS_PER_DAY}, names an unrecognized
+     *         weekday, names a weekday beyond {@code currentEntries.length}, or contains a period
+     *         failing {@link #isValidPeriod}
      */
     @Nullable
     public static ScheduleDTO parse(String json, double currentBaseTemp, double[][][] currentEntries) {
+        if (json.length() > MAX_INPUT_LENGTH) {
+            return null;
+        }
         JsonObject root;
         try {
             JsonElement parsed = JsonParser.parseString(json);
@@ -95,6 +108,11 @@ public final class ScheduleJson {
             }
             root = parsed.getAsJsonObject();
         } catch (JsonParseException e) {
+            return null;
+        } catch (StackOverflowError e) {
+            // Gson's recursive-descent parser has no nesting-depth limit of its own; a deliberately
+            // deeply-nested payload (still well under MAX_INPUT_LENGTH — nesting is compact) would
+            // otherwise blow the calling thread's stack instead of failing this call cleanly.
             return null;
         }
 
@@ -141,6 +159,9 @@ public final class ScheduleJson {
             return null;
         }
         JsonArray periodsJson = periodsElement.getAsJsonArray();
+        if (periodsJson.size() > MAX_PERIODS_PER_DAY) {
+            return null;
+        }
         double[][] dayPeriods = new double[periodsJson.size()][];
         for (int i = 0; i < periodsJson.size(); i++) {
             JsonElement periodElement = periodsJson.get(i);
