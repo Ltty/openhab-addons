@@ -517,6 +517,74 @@ correctly — consistent with the empty-reply-means-failure signal established d
 Much cleaner than DHW's gate: no extended unresponsiveness window this time, just the ordinary
 occasional empty reply.
 
+**Whole-schedule JSON read channel + write actions (2026-09-15).** Added `heating#schedule` /
+`hotwater#schedule` (read-only `String`, publishing the full polled week as JSON) and
+`setChSchedule(json)` / `setDhwSchedule(json)` (Thing Actions, one device write for the whole week)
+via a new static codec, `ScheduleJson`. Driven by a schedule-editing UI on another host that needs to
+render a week before editing it, and needs to save more than one period per interaction without
+paying the per-period actions' one-write-per-period cost at the firmware's 2 s floor (a 6-period day
+is ≥ 12 s of sequential writes, a worst-case full week ≥ 84 s, on a device already known to
+intermittently stop responding for minutes at a time — see above).
+
+JSON shape:
+
+```json
+{
+  "baseTemp": 22.5,
+  "days": {
+    "monday": [ { "start": 360, "end": 1260, "temp": 20.5 } ],
+    "tuesday": [], "wednesday": [], "thursday": [], "friday": [], "saturday": [], "sunday": []
+  }
+}
+```
+
+`start`/`end` are minutes since midnight, matching `setChSchedulePeriod`'s own units exactly; `temp`
+is °C; `baseTemp` mirrors `ch_schedule.base_temp`/`dhw_schedule.base_temp`. All 7 weekday keys are
+always emitted, in monday..sunday order — matching the case-insensitive weekday-name strings the
+existing per-period actions already accept, per the two-numbering-schemes rationale documented above.
+
+**The contract that matters most: `days.<weekday>` array order is `entries[dayIndex]` order,
+verbatim — never sorted, never filtered.** A UI resolves "which period did I just edit" purely from
+its position in this array, then calls `setChSchedulePeriod`/`clearChSchedulePeriod` with that same
+index; diverging here would silently misdirect a caller's next edit onto the wrong period on the live
+boiler. Covered by a dedicated test (`AtagOneHandlerTest.publishedScheduleArrayOrderMatchesPeriodIndexOrder`)
+that reads the published JSON, picks a non-zero position, and confirms a period-index write at that
+position lands on the period that sat there.
+
+**Write input is a partial-days merge, not a required-full-week document.** `setChSchedule`/
+`setDhwSchedule` accept JSON naming only the day(s) actually being changed; weekdays absent from
+`days` are resent unchanged from the last poll (`ScheduleJson.parse`'s `currentEntries` parameter).
+The device still requires the whole schedule object on every write regardless — the binding does that
+merge, not the caller. A caller wanting a genuine whole-week replacement (e.g. round-tripping the read
+channel's own output back through `setChSchedule`) still works unchanged, since that JSON already
+names every day. `baseTemp` follows the same optional-with-fallback pattern.
+
+**Validation tightened for both write paths, not just the new one.** Per an explicit decision this
+round: `ScheduleJson.isValidPeriod` (`0 <= start < end <= 1440`) is now enforced by
+`AtagOneHandler.composeSchedulePeriodChange` too, so the four pre-existing per-period actions
+(shipped in `v0.3.0-beta`) reject the same malformed period a whole-schedule write would. No
+legitimate device data is affected — every observed real schedule has `start < end` and never wraps
+midnight. `temp` stays unvalidated; its legitimate range is installation-dependent (see
+`dhw-target-temperature`'s bounds discussion above) and the device remains the authority on it.
+
+**Post-ack republish, not just a fast re-poll.** `sendChScheduleUpdate`/`sendDhwScheduleUpdate` now
+adopt the just-sent schedule as `lastXxxScheduleEntries` and republish the read channel immediately
+once `AtagOneApiClient.updateXxxSchedule` returns without throwing (i.e. `acc_status == 2`) — not
+just after the next poll. This was **required**, not just a nice-to-have, for two independent
+reasons discovered while implementing this: (1) the existing `POST_COMMAND_DELAY_S = 2` fast re-poll
+lands well inside the 10–100 s unresponsiveness window documented above for an `entries` write, so
+without this the read channel would go stale for that whole window; (2) `lastChScheduleEntries`
+itself would stay stale for the same window, so a second rapid per-period edit issued before the next
+successful poll would silently compose against pre-first-edit data and lose the first edit. Both are
+now fixed by the same one change. Not yet live-gated — see the plan file's verification section for
+the required device test before this ships to the PR branch.
+
+**Return value contract for the two new actions is "queued", not "confirmed".** Both return `true` as
+soon as the JSON is parsed, validated, and handed to `sendComposedChSchedule`/`sendComposedDhwSchedule`
+— they do not block for the device's actual reply, matching every other action in this class. A caller
+wanting write confirmation watches the `schedule` channel, which (per the point above) now updates
+within about a second of the device's acknowledgement rather than waiting for the next poll interval.
+
 ---
 
 ## Write semantics
@@ -905,12 +973,14 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 ### Channels the ATAG portal doesn't show (decision: keep all, Phase I)
 
 The user supplied a full inventory of what the ATAG cloud portal's screens expose. 15 of the
-binding's 61 channels aren't in that list. This count has moved twice since the original decision:
-18 of 63 at the time (Phase I); 17 of 69 after the final-review sweep removed
-`heating#shown-set-temperature` and `control#preset-mode-duration`; 15 of 61 after the 2026-09-15
+binding's 63 channels aren't in that list. This count has moved three times since the original
+decision: 18 of 63 at the time (Phase I); 17 of 69 after the final-review sweep removed
+`heating#shown-set-temperature` and `control#preset-mode-duration`; 15 of 61 after the same-day
 channel audit removed three more portal-absent channels outright
 (`heating#min-modulation-level`, `heating#max-boiler-temperature`, `device#memory-allocation` — see
-the removal notes above). Decision: keep the rest — most surface on the app's own
+the removal notes above); 15 of 63 after the whole-schedule read channels were added — `heating#schedule`/
+`hotwater#schedule` aren't counted as portal-absent below, since the portal does expose the underlying
+schedule, just through its own graphical editor rather than as JSON. Decision: keep the rest — most surface on the app's own
 _Diagnosis_ screen (manual p. 10: "shows more details of status and readings on the boiler") or the
 ONE controller's own SYSTEM DIAGNOSTICS menu (manual p. 46), neither of which the portal inventory
 covered; a few are genuinely binding-only diagnostics with no ATAG-side surface at all, called out
