@@ -202,7 +202,7 @@ unused. Candidate for exposure; see Gap analysis.
 | `lmuc_burner_starts` | int | count | R | — | VERIFIED reads 0 on this device — cannot distinguish "unsupported" from "genuinely zero" |
 | `dhw_flow_rate` | double | L/min | R | `hotwater#flow-rate` | VERIFIED |
 | `resets` | int | count | R | `device#resets` | VERIFIED — used throughout live testing as the controller-reboot indicator |
-| `memory_allocation` | int | ? | R | `device#memory-allocation` | UNKNOWN unit |
+| `memory_allocation` | int | ? | R | — (`device#memory-allocation` channel removed, channel audit 2026-09-15 — unknown unit/scale, nothing to alert on) | UNKNOWN unit |
 
 **`boiler_status` bitmask — CH/DHW/flame bit assignments were wrong, corrected 2026-09-14.** The
 binding had decoded, since Phase 3 (2026-08-20), never independently verified against a real device
@@ -762,8 +762,9 @@ vocabulary, not behavior) except the extend-duration granularity bug, which did:
   `ch-schedule-base-temperature`, `summer-eco-temperature`, `vacation-temperature` (all 4–27°C, not
   their previous narrower/wider ranges), `frost-protection-temperature-room` (4–10°C, not 0–15),
   `frost-protection-temperature-outside` (−10–5°C, not −20–10), `display-brightness` (10–100%, not
-  0–100), `fireplace-duration` (max 24h, previously unbounded), `extend-duration`/
-  `extend-duration-default` (15 min – 6 h in 15-minute steps, not whole hours).
+  0–100), `fireplace-duration` (max 24h, previously unbounded), `extend-duration` (15 min – 6 h in
+  15-minute steps, not whole hours) — `extend-duration-default` had the same bound at the time but was
+  itself removed in the 2026-09-15 channel audit, see below.
 - **Extend duration was a real bug, not just a bound.** The manual (pp. 7, 29) documents extend as
   15 minutes to 6 hours in 15-minute increments; the binding rejected anything that wasn't a whole
   hour. Fixed in `AtagOneHandler`'s `CHANNEL_EXTEND_DURATION` case and
@@ -802,8 +803,10 @@ Static identity exposed as Thing properties, matching the portal's Account → D
 `deviceId` (from `status.device_id` — also the representation-property, now populated for a
 manually-added Thing too, not just a discovered one), `serialNumber` (`configuration.boiler_id`,
 using the standard `Thing.PROPERTY_SERIAL_NUMBER` key), `vendor` (static `"ATAG"`),
-`firmwareVersion` (parsed from `configuration.download_url`'s last path segment), `boilerDetectType`
-(raw integer, no model name invented), `installerId` (only set when non-empty).
+`firmwareVersion` (parsed from `configuration.download_url`'s last path segment), `installerId` (only
+set when non-empty). A fifth property, `boilerDetectType` (raw integer, no model name invented), was
+removed in the 2026-09-15 channel audit — see below — after turning out to likely be a
+detection-method flag, not a boiler model type as its name assumed.
 
 `AtagOneStateDescriptionProvider` (new class, mirrors the `WizStateDescriptionProvider` pattern)
 supplies `hotwater#target-temperature`'s bounds from `configuration.dhw_min_set`/`dhw_max_set` at
@@ -825,14 +828,18 @@ show (user-supplied inventory) and added what was missing:
 - `heating#central-heating-active` / `hotwater#hot-water-active` — `report.boiler_status` bits
   `0x004`/`0x010` (these bit values were themselves wrong, corrected 2026-09-14 to `0x002`/`0x004` —
   see the `boiler_status` bitmask section above), already decoded into locals for `burner-target` but
-  previously discarded. Mirrors
-  the portal's own "Status" section, which lists these two separately.
-- `hotwater#water-pressure` ← `report.dhw_water_pres` — pairs with the existing
-  `heating#water-pressure`.
+  previously discarded. Mirrors the portal's own "Status" section, which lists these two separately.
+  (`burner-target` itself — the prioritized "which one" string these two booleans were decoded
+  alongside — was removed in the 2026-09-15 channel audit, once these two made it redundant and
+  lossier; see below.)
+- ~~`hotwater#water-pressure`~~ ← `report.dhw_water_pres` — pairs with the existing
+  `heating#water-pressure` (which stays; only the DHW side was removed). **Removed in the 2026-09-15
+  channel audit** — reads a constant 0 on this device, no DHW pressure sensor.
 - `heating#weather-temperature` ← `control.weather_temp` — advanced.
-- `heating#regulation-state` ← `report.details.regulation_state` — advanced, and the one
-  `report.details` field exposed despite being INFERRED, not VERIFIED (say so in the channel
-  description).
+- ~~`heating#regulation-state`~~ ← `report.details.regulation_state` — advanced, and the one
+  `report.details` field exposed despite being INFERRED, not VERIFIED. **Removed in the 2026-09-15
+  channel audit** for exactly that reason — a Switch whose ON/OFF meaning was never more than a
+  naming guess.
 - `control#next-schedule-time` / `control#next-schedule-temperature` — the portal's automatic-mode
   "next time target"/"next time target temperature". Computed from `schedules.ch_schedule.entries`
   (already parsed, no new request) plus the current time, via
@@ -932,9 +939,11 @@ explicitly marked otherwise. Kept for the reasoning trail, not as a live task li
   outside the heating season). The two are genuinely different data sources.
 - `report.dhw_water_pres` → `hotwater#water-pressure` (Phase I) — pairs with the already-exposed
   `heating#water-pressure`.
-- `report.details.regulation_state` → `heating#regulation-state` (Phase I) — cheap, useful "is the
+- `report.details.regulation_state` → ~~`heating#regulation-state`~~ (Phase I) — cheap, useful "is the
   regulation algorithm active" status, unlike the other `report.details` internals which have no
-  external meaning. Still INFERRED, not VERIFIED — the channel description says so.
+  external meaning; still INFERRED, not VERIFIED. **Removed in the 2026-09-15 channel audit** for
+  exactly that reason — a Switch whose ON/OFF meaning was never more than a naming guess and never
+  got verified.
 - `schedules.ch_schedule.base_temp` / `schedules.dhw_schedule.base_temp` — **done (Phase B)**, exposed
   as `heating#schedule-base-temperature`/`hotwater#schedule-base-temperature`. **Both writable now**:
   `heating#schedule-base-temperature` writes `ch_schedule.base_temp` directly (Phase D), and
@@ -945,8 +954,9 @@ explicitly marked otherwise. Kept for the reasoning trail, not as a live task li
 **Thing properties (static identity, not channels) — done, Phase H:**
 
 `configuration.boiler_id` → `serialNumber`, `configuration.installer_id` → `installerId`,
-`configuration.boiler_det_type` → `boilerDetectType`, `configuration.download_url` → parsed into
-`firmwareVersion`, plus `status.device_id` → `deviceId` and a static `vendor` = `"ATAG"`.
+`configuration.download_url` → parsed into `firmwareVersion`, plus `status.device_id` → `deviceId` and
+a static `vendor` = `"ATAG"`. (`configuration.boiler_det_type` → `boilerDetectType` was also part of
+this phase originally; removed in the 2026-09-15 channel audit, see below.)
 
 **Dynamic state description provider, not separate channels — done, Phase H:**
 
@@ -1010,7 +1020,7 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 |---|---|---|
 | `control.ch_mode_duration` | `control#extend-remaining` + `control#fireplace-remaining` | Mode-gated — only one of the two ever reads non-UNDEF at a time (see `updateChannels()`'s if/else-if chain on `ch_mode`). Same field, two differently-named views for discoverability per active mode. (A third view, `control#preset-mode-duration`, was removed in the final-review sweep — it was a literal duplicate of whichever of these two was active, with no distinct use case found.) |
 | `control.ch_mode_temp` | `heating#target-temperature` + `control#vacation-temperature` (during active holiday) | The device itself reuses this field as "whatever the currently active mode's live setpoint is" — reflecting that faithfully means both channels legitimately show it during holiday |
-| `report.boiler_status` | `heating#flame` (bit `0x008`) + `heating#burner-target` (bits `0x002`/`0x004`) + `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, same two bits again) | Disjoint bits of one bitmask, decoded into differently-shaped views (a single flame indicator, a prioritized "which one" string, and two independent booleans) — not redundant, each answers a different question. Bit values corrected 2026-09-14, see above |
+| `report.boiler_status` | `heating#flame` (bit `0x008`) + `heating#central-heating-active`/`hotwater#hot-water-active` (bits `0x002`/`0x004`) | Disjoint bits of one bitmask, decoded into two views (a flame indicator and two independent booleans). A third view, `heating#burner-target` (a prioritized "which one" string built from the same two bits), was removed in the 2026-09-15 channel audit — strictly derivable from, and lossier than, the two booleans it duplicated. Bit values corrected 2026-09-14, see above |
 | `control.vacation_duration` | `control#vacation-duration` directly, plus a derivation input to `control#vacation-end`/`control#vacation-remaining` | One raw value feeding one direct channel and two computed ones — standard derivation, not duplication |
 | `configuration.start_vacation` | `control#vacation-start` directly, plus a derivation input to `control#vacation-end`/`control#vacation-remaining` | Same pattern as above |
 | **The device's own duplicates**: `wd_k_factor`, `wd_exponent`, `mu` | Each appears in both `report.details` and `configuration` | Not the binding's doing — the device itself reports these three fields in two places. Neither location is exposed as a channel (all UNKNOWN, no cloud/app surface), so this causes no user-facing confusion, only a documentation note |
