@@ -186,10 +186,10 @@ unused. Candidate for exposure; see Gap analysis.
 | `ch_setpoint` | double | °C | R | `heating#water-setpoint` | VERIFIED — reads 0 when no heating demand active |
 | `dhw_water_temp` | double | °C | R | `hotwater#temperature` | VERIFIED |
 | `ch_water_temp` | double | °C | R | `heating#water-temperature` | VERIFIED |
-| `dhw_water_pres` | double | bar | R | `hotwater#water-pressure` (Phase I) | VERIFIED |
+| `dhw_water_pres` | double | bar | R | — (removed, channel audit 2026-09-15 — reads a constant `0` on this device, no DHW pressure sensor on a combi; same "cannot distinguish unsupported from genuinely zero" reasoning that already kept `lmuc_burner_starts` unexposed) | VERIFIED shape, but see removal reason |
 | `ch_water_pres` | double | bar | R | `heating#water-pressure` | VERIFIED |
 | `ch_return_temp` | double | °C | R | `heating#return-temperature`, also feeds `heating#delta-temperature` (Phase I: `ch_water_temp − ch_return_temp`) | VERIFIED |
-| `boiler_status` | int (bitmask) | — | R | `heating#flame`, `heating#burner-target` (decoded), plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) | Bit assignments CORRECTED 2026-09-14 (were wrong since Phase 3) — see below |
+| `boiler_status` | int (bitmask) | — | R | `heating#flame`, plus `heating#central-heating-active`/`hotwater#hot-water-active` (Phase I, the same two bits split into standalone channels) — `heating#burner-target` (the third, prioritized-string view) removed in the 2026-09-15 channel audit as strictly derivable from, and lossier than, the other two | Bit assignments CORRECTED 2026-09-14 (were wrong since Phase 3) — see below |
 | `boiler_config` | int (bitmask) | — | R | — | UNKNOWN |
 | `ch_time_to_temp` | int | s | R | `heating#time-to-target` (published in minutes, 2026-09-14 — raw seconds is an awkward display unit and `Number:Time` items don't format sub-hour durations well in whole hours) | VERIFIED |
 | `shown_set_temp` | double | °C | R | — (removed, final-review sweep 2026-09-13 — every live sample matched `heating#target-temperature` exactly and no ATAG surface justified keeping a second channel for it) | VERIFIED, but redundant with `control.ch_mode_temp` in every case observed |
@@ -292,14 +292,14 @@ way to distinguish "not supported by this boiler model" from "genuinely zero" fr
 |---|---|---|---|---|---|
 | `boiler_temp` | double | °C | R | `heating#boiler-temperature` | VERIFIED |
 | `boiler_return_temp` | double | °C | R | `heating#boiler-return-temperature` | VERIFIED |
-| `min_mod_level` | int | % | R | `heating#min-modulation-level` | VERIFIED |
+| `min_mod_level` | int | % | R | — (removed, channel audit 2026-09-15 — a fixed burner hardware characteristic that never changes; arguably Thing-property-shaped but not worth adding, nobody looks it up) | VERIFIED |
 | `rel_mod_level` | int | % | R | `heating#modulation-level` | VERIFIED |
 | `boiler_capacity` | int | kW (presumed) | R | — | UNKNOWN — reads 0 |
 | `target_temp` | double | °C | R | — | UNKNOWN — regulation-algorithm internal target, distinct from `ch_mode_temp` |
 | `overshoot` | double | K | R | — | UNKNOWN |
-| `max_boiler_temp` | double | °C | R | `heating#max-boiler-temperature` | VERIFIED |
+| `max_boiler_temp` | double | °C | R | — (removed, channel audit 2026-09-15 — fixed installer configuration, not something anyone monitors; duplicates `ch_temp_max`'s role, see below) | VERIFIED |
 | `alpha_used` | double | — | R | — | UNKNOWN — regulation coefficient |
-| `regulation_state` | int | — | R | `heating#regulation-state` (Phase I) | INFERRED `0=off, 1=on` from naming; not tested — the description says so explicitly, the sole `report.details` field exposed despite that |
+| `regulation_state` | int | — | R | — (removed, channel audit 2026-09-15 — still only INFERRED `0=off, 1=on` from naming, never independently tested; an unverifiable Switch is worse than no channel — someone builds a rule on it and it may be inverted) | INFERRED `0=off, 1=on` from naming; not tested |
 | `ch_m_dot_c` | double | — | R | — | UNKNOWN |
 | `c_house` | long | — | R | — | UNKNOWN |
 | `r_rad` | double | — | R | — | UNKNOWN |
@@ -344,10 +344,10 @@ correctly, documented in full under Write semantics below.
 | Field | Type | Unit | Access | Exposed as | Status |
 |---|---|---|---|---|---|
 | `report_url` | string | — | R | — | VERIFIED (read-only, do not write) |
-| `download_url` | string | — | R | `deviceId`/`serialNumber`/`vendor`/`firmwareVersion`/`boilerDetectType`/`installerId` Thing properties (Phase H) | VERIFIED — firmware version embeddable (`…/R60` → `R60`) |
+| `download_url` | string | — | R | `deviceId`/`serialNumber`/`vendor`/`firmwareVersion`/`installerId` Thing properties (Phase H) | VERIFIED — firmware version embeddable (`…/R60` → `R60`) |
 | `boiler_id` | string | — | R | `serialNumber` Thing property (Phase H) | VERIFIED |
-| `boiler_det_type` | int | — | R | `boilerDetectType` Thing property (Phase H) | UNKNOWN meaning — exposed as the raw integer, no model name invented |
-| `language` | int enum | — | INFERRED W (app) | `device#language`, read-only, decoded to a name (`english`/`dutch`/`french`/`italian`/`german`, 2026-09-14 — was a raw `DecimalType` before) | VERIFIED `0=English, 1=Dutch, 2=French, 3=Italian, 4=German` — device reads `4`, display confirmed set to German |
+| `boiler_det_type` | int | — | R | — (`boilerDetectType` Thing property removed, channel audit 2026-09-15) | UNKNOWN meaning — the name says *detection* type (how was the boiler detected, e.g. auto vs. manual OpenTherm handshake), not a model identifier; the app's own info screen shows a real model string ("A160S" on this device) that appears nowhere in the local API, checked against a full `/retrieve` and this project's own portal HAR captures. `boiler_det_type=1` was never actually confirmed to be that string's source, and one device gives one data point regardless — not enough to build a mapping even if it were |
+| `language` | int enum | — | **W** (app-verified 2026-09-15) | `device#language`, writable, decoded to/from a name (`english`/`dutch`/`french`/`italian`/`german`) | VERIFIED `0=English, 1=Dutch, 2=French, 3=Italian, 4=German` — device reads `4`, display confirmed set to German; write path added and verified against the app 2026-09-15 |
 | `pressure_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=bar, 1=psi` from javadoc; reads 0, alternate branch untested |
 | `temp_unit` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=°C, 1=°F`; reads 0, alternate branch untested |
 | `time_format` | int enum | — | INFERRED W (app) | **Decision (2026-09-13): leave unexposed** | INFERRED `0=24h, 1=12h`; reads 1 |
@@ -358,7 +358,7 @@ correctly, documented in full under Write semantics below.
 | `comfort_settings` | int (bitmask) | — | R | — | UNKNOWN |
 | `room_temp_offs` | double | °C | **W** (app) | `heating#room-temperature-correction` (Phase J) | VERIFIED — matches app's "Inside temperature correction" exactly (reads −1.0) |
 | `outs_temp_offs` | double | °C | **W** (app) | `heating#outside-temperature-correction` (Phase J) | VERIFIED range (±5°C, manual p. 20); which of this or `wd_temp_offs` is the field the cloud's `wdr_temps_offset` submits to is still open — see Open questions |
-| `ch_temp_max` | double | °C | R (installer) | — | VERIFIED reads; duplicates `heating#max-boiler-temperature`'s role — no separate channel needed |
+| `ch_temp_max` | double | °C | R (installer) | — | VERIFIED reads; duplicates `report.details.max_boiler_temp`'s role, neither exposed as a channel (see the removal note above) |
 | `ch_vacation_temp` | double | °C | **W** (cloud) | `control#vacation-temperature` (read side, when not in holiday) | VERIFIED. Its write case was the only `configuration` write missing `fillConfigBundle()` — fixed and live-verified Phase J (see Temperature corrections below) |
 | `start_vacation` | long (ATAG epoch) | s | **W** (implicit, via vacation-duration write) | `control#vacation-start` (derived) | VERIFIED |
 | `wd_k_factor` | double | — | R | — | UNKNOWN — duplicates `report.details.wd_k_factor`; one of the fields the device itself double-maps, see Double-mapping inventory |
@@ -373,8 +373,8 @@ correctly, documented in full under Write semantics below.
 | `ch_isolation` | int enum | — | **W** (cloud) | `heating#insulation` (Phase F; **renamed from `isolation`, Phase G** — "isolation" was a false friend, the manual and app say "insulation" throughout) | VERIFIED `1=poor, 2=average, 3=good` — device=3, cloud shows "good" |
 | `installer_id` | string | — | R | `installerId` Thing property (Phase H), only when non-empty | VERIFIED (reads empty on this device) |
 | `disp_brightness` | int | % | **W** (app) | `device#display-brightness` (Phase F) | VERIFIED reads (30); write live-gated 30→50→30, zero drift — manual's range is 10–100% (Phase G corrected the bound from 0–100) |
-| `ch_mode_vacation` | long | s | **W** (cloud, unit-translated) | `control#vacation-duration-default` (Phase F), also feeds `defaultVacationDurationSeconds` internally | VERIFIED — cloud form is **days** (7), local API is **seconds** (604800) |
-| `ch_mode_extend` | long | s | **W** (cloud, unit-translated) | `control#extend-duration-default` (Phase F) | VERIFIED value (3600) but **not the extend session length** — see Write semantics |
+| `ch_mode_vacation` | long | s | **W** (cloud, unit-translated) | — (`control#vacation-duration-default` channel removed, channel audit 2026-09-15 — still read every poll and feeds `defaultVacationDurationSeconds` internally, purely as the binding's own activation fallback; the device itself never applies this fallback, see the Write semantics table below) | VERIFIED — cloud form is **days** (7), local API is **seconds** (604800) |
+| `ch_mode_extend` | long | s | **W** (cloud, unit-translated) | — (`control#extend-duration-default` channel removed, channel audit 2026-09-15 — same reasoning as `ch_mode_vacation` above) | VERIFIED value (3600) but **not the extend session length** — see Write semantics |
 | `support_contact` | string | — | R | — | VERIFIED (read-only, do not write) |
 | `privacy_mode` | int (bool-ish) | — | R (installer) | — | UNKNOWN — `1=on, disables cloud reporting` per earlier research, not device-tested |
 | `ch_max_set` | double | °C | R | Boiler *water* limit — deliberately NOT wired to `target-temperature` (Phase H) | VERIFIED reads (85.0) — setpoint bound, not a user setting |
@@ -882,10 +882,10 @@ readings).
 | `frost_prot_*`, `summer_eco_*`, `ch_heating_type`, `ch_isolation`, `ch_building_size`, `wdr_temps_influence`, `climate_zone`, `max_preheat` | `heating` | advanced, writable |
 | `wd_temp_offs`, `outs_temp_offs`, `room_temp_offs` | `heating` | advanced, writable — **Phase J**, closing the field Phase F deferred; three offsets, not two, per the manual (see `configuration` table above) |
 | `dhw_legion_enabled`/`_day`/`_time` | `hotwater` | advanced, writable |
-| `ch_mode_vacation`, `ch_mode_extend` | `control` | advanced — preset defaults, not subsystem settings |
+| `ch_mode_vacation`, `ch_mode_extend` | `control` | **channels removed, channel audit 2026-09-15** — genuine device-persisted fields (VERIFIED), but only the binding's own `composeVacationActivation()`/`composeExtendActivation()` ever consult them (see the write-semantics note above); no evidence the device applies them as a fallback on its own, e.g. via the physical display. Still read every poll into `defaultVacationDurationSeconds`/`defaultExtendDurationSeconds` for that internal use — the fields themselves aren't going anywhere, just the channels that let a user write them directly |
 | `disp_brightness` | `device` | advanced, writable — VERIFIED via its own dedicated live test, separate from the rest of the Phase F group |
 | `time_zone` | `device` | advanced, **made writable 2026-09-14** (was read-only) — only `1=Berlin` is device-verified; the other 9 enum values are inferred from dropdown order only, which is the exact risk class that has caused live incidents in this project before, so **the binding never treats them as verified even though it now accepts writing them**. Reversed at the explicit request of this device's own owner, who accepts that risk for their own device; the field comment on `AtagOneBindingConstants.TIME_ZONE_BY_NAME`'s use site and the channel description both carry the caveat forward |
-| `language` | `device` | advanced, **read-only** (unchanged) — enum is verified for this device (`4=German`), but changing the thermostat's display language from openHAB has near-zero automation value. Now decoded to a name instead of a raw integer (2026-09-14) |
+| `language` | `device` | advanced, **made writable 2026-09-15** (was read-only) — reversed once the device owner confirmed against the app that all 5 values are real, selectable options, unlike `time_zone`'s partial-verification situation |
 | `dhw_min_set`/`dhw_max_set`, `ch_min_set`/`ch_max_set` | — | Not channels: dynamic state description provider (see above) |
 | `boiler_id`, `installer_id`, firmware version | — | Not channels: Thing properties (see above) |
 
@@ -904,10 +904,13 @@ Per decision: fix only the DHW read/write asymmetry (done, above); document the 
 
 ### Channels the ATAG portal doesn't show (decision: keep all, Phase I)
 
-The user supplied a full inventory of what the ATAG cloud portal's screens expose. 17 of the
-binding's 69 channels aren't in that list (was 18 of 63 at the time of this decision — the final-review
-sweep removed `heating#shown-set-temperature` and `control#preset-mode-duration`, and Phases G–J's own
-additions changed the totals too). Decision: keep the rest — most surface on the app's own
+The user supplied a full inventory of what the ATAG cloud portal's screens expose. 15 of the
+binding's 61 channels aren't in that list. This count has moved twice since the original decision:
+18 of 63 at the time (Phase I); 17 of 69 after the final-review sweep removed
+`heating#shown-set-temperature` and `control#preset-mode-duration`; 15 of 61 after the 2026-09-15
+channel audit removed three more portal-absent channels outright
+(`heating#min-modulation-level`, `heating#max-boiler-temperature`, `device#memory-allocation` — see
+the removal notes above). Decision: keep the rest — most surface on the app's own
 _Diagnosis_ screen (manual p. 10: "shows more details of status and readings on the boiler") or the
 ONE controller's own SYSTEM DIAGNOSTICS menu (manual p. 46), neither of which the portal inventory
 covered; a few are genuinely binding-only diagnostics with no ATAG-side surface at all, called out
@@ -915,8 +918,8 @@ below.
 
 | Channel | ATAG-side surface |
 |---|---|
-| `device#voltage`, `device#wifi-signal`, `device#resets`, `device#memory-allocation`, `device#pcb-temperature` | Controller's own SYSTEM DIAGNOSTICS menu (manual p. 46) — hardware self-diagnostics, not user settings |
-| `heating#boiler-temperature`, `heating#boiler-return-temperature`, `heating#max-boiler-temperature`, `heating#modulation-level`, `heating#min-modulation-level` | App's _Diagnosis_ screen (manual p. 10) — boiler-side detail beyond the portal's summary view |
+| `device#voltage`, `device#wifi-signal`, `device#resets`, `device#pcb-temperature` | Controller's own SYSTEM DIAGNOSTICS menu (manual p. 46) — hardware self-diagnostics, not user settings |
+| `heating#boiler-temperature`, `heating#boiler-return-temperature`, `heating#modulation-level` | App's _Diagnosis_ screen (manual p. 10) — boiler-side detail beyond the portal's summary view |
 | `heating#time-to-target` | No direct ATAG-side screen found; genuinely binding-only, kept as a low-cost useful diagnostic with clear, unambiguous meaning |
 | `heating#weather-status` | Displayed as an icon on the ONE/app/portal front screen (manual pp. 5, 16), not as a named settings-screen field — the portal inventory's screen-by-screen list didn't capture front-screen icons |
 | `hotwater#flow-rate` | App's _Diagnosis_ screen |
@@ -998,8 +1001,8 @@ deliberately varied field.
 1. What do `control.ch_status` (reads `1`) and `control.dhw_status` (reads `53`) enumerate? Neither
    is a simple boolean — `dhw_status=53` in particular suggests a bitmask or small state machine, not
    an on/off flag. No cloud/app surface found for either. Distinct from `report.boiler_status` (the
-   field `heating#flame`/`heating#burner-target`/`heating#central-heating-active`/
-   `hotwater#hot-water-active` decode) — these two `control` fields have never been parsed or acted on
+   field `heating#flame`/`heating#central-heating-active`/`hotwater#hot-water-active` decode) — these
+   two `control` fields have never been parsed or acted on
    at all.
 1. What is the actual device-required minimum inter-request interval? Phase A live-verified 1000 ms
    (down from an earlier 2000 ms) with no regression in `OFFLINE`/`COMMUNICATION_ERROR` frequency, so
