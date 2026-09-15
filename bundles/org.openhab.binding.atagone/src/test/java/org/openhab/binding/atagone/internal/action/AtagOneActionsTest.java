@@ -273,7 +273,7 @@ class AtagOneActionsTest {
     @Test
     void setChSchedulePeriodComposesAndSendsOnSuccess() throws ReflectiveOperationException {
         double[][][] entries = new double[7][][];
-        entries[0] = new double[][] { { 0, 1440, 18.0 } };
+        entries[0] = new double[][] { { 0, 360, 18.0 } };
         seedLastChScheduleEntries(entries);
         seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
 
@@ -291,6 +291,31 @@ class AtagOneActionsTest {
         seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
 
         boolean accepted = actions.setChSchedulePeriod("someday", 0, 0, 1440, 18.0);
+
+        assertFalse(accepted);
+        verify(handler, never()).sendComposedChSchedule(anyString(), any());
+    }
+
+    @Test
+    void setChSchedulePeriodRejectsOverlapWithAnotherPeriodWithoutSending() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 600, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        boolean accepted = actions.setChSchedulePeriod("monday", 1, 300, 900, 20.0);
+
+        assertFalse(accepted);
+        verify(handler, never()).sendComposedChSchedule(anyString(), any());
+    }
+
+    @Test
+    void setChScheduleRejectsOverlappingPeriodsWithoutSending() throws ReflectiveOperationException {
+        seedLastChScheduleEntries(new double[7][][]);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        boolean accepted = actions.setChSchedule(
+                "{\"days\":{\"monday\":[{\"start\":0,\"end\":600,\"temp\":18},{\"start\":300,\"end\":900,\"temp\":20}]}}");
 
         assertFalse(accepted);
         verify(handler, never()).sendComposedChSchedule(anyString(), any());
@@ -332,7 +357,7 @@ class AtagOneActionsTest {
     @Test
     void setDhwSchedulePeriodComposesAndSendsOnSuccess() throws ReflectiveOperationException {
         double[][][] entries = new double[7][][];
-        entries[5] = new double[][] { { 0, 1440, 45.0 } };
+        entries[5] = new double[][] { { 0, 360, 45.0 } };
         seedLastDhwScheduleEntries(entries);
         seedState(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(48.0, SIUnits.CELSIUS));
 

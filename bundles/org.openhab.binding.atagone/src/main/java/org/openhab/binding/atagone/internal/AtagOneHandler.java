@@ -472,8 +472,10 @@ public class AtagOneHandler extends BaseThingHandler {
      * schedule's {@code base_temp} unchanged — the device requires the complete schedule object on
      * every write.
      *
-     * @return the composed schedule, or {@code null} if the weekday/index is out of range or no prior
-     *         poll has captured the current CH schedule yet
+     * @return the composed schedule, or {@code null} if the weekday/index is out of range, no prior
+     *         poll has captured the current CH schedule yet, or the given period overlaps another
+     *         period already on that weekday (see {@link #overlapsAnyOtherPeriod}) — rejected
+     *         outright, never trimmed or reordered
      */
     @Nullable
     public ScheduleDTO composeChSchedulePeriodSet(String weekday, int periodIndex, int startMinutes, int endMinutes,
@@ -546,13 +548,35 @@ public class AtagOneHandler extends BaseThingHandler {
     }
 
     /**
+     * True if {@code candidate} overlaps any period in {@code dayEntries} other than the one at
+     * {@code excludeIndex} — the slot {@code candidate} is itself replacing (or appending past, for
+     * which {@code excludeIndex == dayEntries.length} never matches a real index, so nothing is
+     * excluded). Uses {@link ScheduleJson#periodsOverlap}, the same half-open-interval definition the
+     * whole-schedule write path checks entries against each other with.
+     */
+    private static boolean overlapsAnyOtherPeriod(double[][] dayEntries, int excludeIndex, double[] candidate) {
+        for (int i = 0; i < dayEntries.length; i++) {
+            if (i == excludeIndex) {
+                continue;
+            }
+            double[] other = dayEntries[i];
+            if (ScheduleJson.periodsOverlap(candidate[0], candidate[1], other[0], other[1])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Shared mutation for the four {@code composeXxxSchedulePeriodYyy} methods above. {@code newPeriod}
      * being {@code null} means "clear the period at {@code periodIndex}"; otherwise it replaces (or, if
-     * {@code periodIndex} equals the day's current length, appends) that period. {@code weekday} is a
-     * name (matching {@link AtagOneBindingConstants#WEEKDAY_BY_NAME}), not a raw index — the device
-     * uses two different, unrelated weekday numbering schemes across its protocol (this array is
-     * 0-indexed from Monday, {@code configuration.dhw_legion_day} is 1-indexed), and a name sidesteps
-     * that ambiguity for anyone calling these actions.
+     * {@code periodIndex} equals the day's current length, appends) that period, rejecting a period
+     * that overlaps any other period already on that weekday (see {@link #overlapsAnyOtherPeriod}) —
+     * clearing a period can never create an overlap, so that branch skips the check entirely.
+     * {@code weekday} is a name (matching {@link AtagOneBindingConstants#WEEKDAY_BY_NAME}), not a raw
+     * index — the device uses two different, unrelated weekday numbering schemes across its protocol
+     * (this array is 0-indexed from Monday, {@code configuration.dhw_legion_day} is 1-indexed), and a
+     * name sidesteps that ambiguity for anyone calling these actions.
      */
     @Nullable
     private ScheduleDTO composeSchedulePeriodChange(double @Nullable [][][] lastEntries, String baseTempChannel,
@@ -571,7 +595,8 @@ public class AtagOneHandler extends BaseThingHandler {
         }
         double[][] updatedDay;
         if (newPeriod != null) {
-            if (periodIndex > dayEntries.length || !ScheduleJson.isValidPeriod(newPeriod[0], newPeriod[1])) {
+            if (periodIndex > dayEntries.length || !ScheduleJson.isValidPeriod(newPeriod[0], newPeriod[1])
+                    || overlapsAnyOtherPeriod(dayEntries, periodIndex, newPeriod)) {
                 return null;
             }
             updatedDay = periodIndex < dayEntries.length ? dayEntries.clone()

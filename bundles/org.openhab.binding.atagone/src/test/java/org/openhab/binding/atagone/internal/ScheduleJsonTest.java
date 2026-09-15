@@ -215,12 +215,14 @@ class ScheduleJsonTest {
 
     @Test
     void parseAcceptsExactlyTheMaxPeriodsInADay() {
+        // Sequential, back-to-back, non-overlapping — 100 identical periods would themselves all
+        // overlap and get rejected by the overlap check before the count is what's being tested here.
         StringBuilder periods = new StringBuilder();
         for (int i = 0; i < 100; i++) {
             if (i > 0) {
                 periods.append(',');
             }
-            periods.append("{\"start\":0,\"end\":1,\"temp\":20}");
+            periods.append("{\"start\":").append(i).append(",\"end\":").append(i + 1).append(",\"temp\":20}");
         }
         String json = "{\"days\":{\"monday\":[" + periods + "]}}";
 
@@ -228,6 +230,43 @@ class ScheduleJsonTest {
 
         assertNotNull(parsed);
         assertEquals(100, parsed.entries[0].length);
+    }
+
+    @Test
+    void parseRejectsTwoOverlappingPeriodsOnTheSameWeekday() {
+        String json = "{\"days\":{\"monday\":[{\"start\":0,\"end\":600,\"temp\":18},{\"start\":300,\"end\":900,\"temp\":20}]}}";
+
+        assertNull(ScheduleJson.parse(json, 22.5, new double[7][][]));
+    }
+
+    @Test
+    void parseAcceptsBackToBackPeriodsThatDoNotOverlap() {
+        // Half-open intervals — a period ending exactly when the next starts is not an overlap.
+        String json = "{\"days\":{\"monday\":[{\"start\":0,\"end\":600,\"temp\":18},{\"start\":600,\"end\":900,\"temp\":20}]}}";
+
+        ScheduleDTO parsed = ScheduleJson.parse(json, 22.5, new double[7][][]);
+
+        assertNotNull(parsed);
+        assertEquals(2, parsed.entries[0].length);
+    }
+
+    @Test
+    void parseOverlapCheckIsScopedPerWeekday() {
+        // Identical time ranges on different weekdays must not be treated as overlapping each other.
+        String json = "{\"days\":{\"monday\":[{\"start\":0,\"end\":600,\"temp\":18}],"
+                + "\"tuesday\":[{\"start\":0,\"end\":600,\"temp\":19}]}}";
+
+        ScheduleDTO parsed = ScheduleJson.parse(json, 22.5, new double[7][][]);
+
+        assertNotNull(parsed);
+    }
+
+    @Test
+    void periodsOverlapUsesHalfOpenIntervals() {
+        assertFalse(ScheduleJson.periodsOverlap(0, 600, 600, 900)); // back-to-back, not overlapping
+        assertTrue(ScheduleJson.periodsOverlap(0, 600, 599, 900)); // one minute of overlap
+        assertTrue(ScheduleJson.periodsOverlap(300, 900, 0, 1440)); // fully contained
+        assertFalse(ScheduleJson.periodsOverlap(0, 600, 600, 600)); // zero-length adjacent period
     }
 
     @Test

@@ -92,8 +92,10 @@ public final class ScheduleJson {
      *
      * @return the composed schedule ready to send, or {@code null} if the input is malformed, exceeds
      *         {@link #MAX_INPUT_LENGTH} or {@link #MAX_PERIODS_PER_DAY}, names an unrecognized
-     *         weekday, names a weekday beyond {@code currentEntries.length}, or contains a period
-     *         failing {@link #isValidPeriod}
+     *         weekday, names a weekday beyond {@code currentEntries.length}, contains a period failing
+     *         {@link #isValidPeriod}, or contains two periods on the same weekday that
+     *         {@link #periodsOverlap} — rejected outright rather than trimmed or reordered, since
+     *         resolving a conflict is a caller policy decision, not this codec's to make
      */
     @Nullable
     public static ScheduleDTO parse(String json, double currentBaseTemp, double[][][] currentEntries) {
@@ -177,6 +179,13 @@ public final class ScheduleJson {
             }
             dayPeriods[i] = new double[] { start, end, temp };
         }
+        for (int i = 0; i < dayPeriods.length; i++) {
+            for (int j = i + 1; j < dayPeriods.length; j++) {
+                if (periodsOverlap(dayPeriods[i][0], dayPeriods[i][1], dayPeriods[j][0], dayPeriods[j][1])) {
+                    return null;
+                }
+            }
+        }
         return dayPeriods;
     }
 
@@ -200,5 +209,18 @@ public final class ScheduleJson {
      */
     public static boolean isValidPeriod(double startMinutes, double endMinutes) {
         return startMinutes >= 0 && endMinutes <= 1440 && startMinutes < endMinutes;
+    }
+
+    /**
+     * True if half-open intervals {@code [aStart, aEnd)} and {@code [bStart, bEnd)} overlap — a
+     * period ending exactly when another starts does <em>not</em> count as overlapping. Rejection
+     * only, never resolution: which period should yield on a conflict is a caller/UI policy decision,
+     * not one either write path makes for the caller. Used both here (whole-schedule writes reject if
+     * any two periods within the same weekday overlap each other) and by
+     * {@link AtagOneHandler#composeSchedulePeriodChange} (a per-period write rejects if the new/edited
+     * period overlaps any <em>other</em> period already on that weekday).
+     */
+    public static boolean periodsOverlap(double aStart, double aEnd, double bStart, double bEnd) {
+        return aStart < bEnd && aEnd > bStart;
     }
 }

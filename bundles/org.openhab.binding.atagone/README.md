@@ -310,6 +310,17 @@ two different, unrelated weekday numbering schemes internally, and a name sidest
 period changed; **writing a schedule has been observed to make the thermostat briefly unresponsive
 (around 100 seconds)**, so avoid calling these from a tight loop or in response to frequent events.
 
+**All four schedule-write actions reject a period that overlaps another period already on the same
+weekday** — two periods `[aStart, aEnd)` and `[bStart, bEnd)` overlap if `aStart < bEnd && aEnd >
+bStart` (half-open intervals, so one period ending exactly when the next starts is not an overlap).
+`setChSchedulePeriod`/`setDhwSchedulePeriod` exclude the period being replaced from that comparison.
+Rejection returns `false` (or, for `setChSchedule`/`setDhwSchedule`, `null` from the underlying
+compose step) with no write sent — the same generic failure signal every other invalid input on
+these actions already uses (unknown weekday, out-of-range index, malformed JSON, invalid bounds).
+There's no separate exception type or error code to catch a schedule conflict specifically; a caller
+that needs to tell the two apart has to check its own input against `heating#schedule`/
+`hotwater#schedule` before calling, the same way it must already avoid the other rejection cases.
+
 `setChSchedule`/`setDhwSchedule` take the same JSON shape `heating#schedule`/`hotwater#schedule`
 publish:
 

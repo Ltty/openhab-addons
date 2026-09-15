@@ -1394,13 +1394,15 @@ class AtagOneHandlerTest {
         JsonObject periodAtPosition = published.getAsJsonObject("days").getAsJsonArray("monday").get(position)
                 .getAsJsonObject();
 
-        ScheduleDTO composed = handler.composeChSchedulePeriodSet("monday", position, 999, 1000, 30.0);
+        // Replacement stays inside the original [240,480) slot so it can't overlap its neighbors —
+        // the point of this test is array-order/index agreement, not overlap rejection.
+        ScheduleDTO composed = handler.composeChSchedulePeriodSet("monday", position, 300, 400, 30.0);
 
         assertNotNull(composed);
         // Replacing at `position` must have overwritten exactly the period that sat at `position` in
         // the published JSON, not some other one — confirming array order and periodIndex agree.
         assertEquals(240, periodAtPosition.get("start").getAsLong());
-        assertArrayEquals(new double[] { 999, 1000, 30.0 }, composed.entries[0][position], 0.001);
+        assertArrayEquals(new double[] { 300, 400, 30.0 }, composed.entries[0][position], 0.001);
         assertArrayEquals(reply.schedules.ch_schedule.entries[0][0], composed.entries[0][0], 0.001);
         assertArrayEquals(reply.schedules.ch_schedule.entries[0][2], composed.entries[0][2], 0.001);
     }
@@ -1414,6 +1416,57 @@ class AtagOneHandlerTest {
 
         assertNull(handler.composeChSchedulePeriodSet("monday", 0, 600, 600, 20.0));
         assertNull(handler.composeChSchedulePeriodSet("monday", 0, 600, 500, 20.0));
+    }
+
+    @Test
+    void chSchedulePeriodSetRejectsOverlapWithAnotherPeriodOnTheSameDay() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        // Two existing periods; appending a third that overlaps the second must be rejected.
+        entries[0] = new double[][] { { 0, 240, 18.0 }, { 600, 1200, 20.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        assertNull(handler.composeChSchedulePeriodSet("monday", 2, 900, 1300, 21.0));
+    }
+
+    @Test
+    void chSchedulePeriodSetAllowsReplacingAPeriodWithSomethingOverlappingItsOwnOldSlot()
+            throws ReflectiveOperationException {
+        // The period being replaced must be excluded from the overlap comparison — otherwise editing
+        // a period's own time range even slightly would always "overlap" its own prior value.
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 600, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        ScheduleDTO schedule = handler.composeChSchedulePeriodSet("monday", 0, 100, 700, 19.0);
+
+        assertNotNull(schedule);
+        assertArrayEquals(new double[] { 100, 700, 19.0 }, schedule.entries[0][0], 0.001);
+    }
+
+    @Test
+    void chSchedulePeriodSetAllowsBackToBackNonOverlappingPeriods() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[0] = new double[][] { { 0, 600, 18.0 } };
+        seedLastChScheduleEntries(entries);
+        seedState(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(22.5, SIUnits.CELSIUS));
+
+        // Appended period starts exactly when the existing one ends — half-open, not an overlap.
+        ScheduleDTO schedule = handler.composeChSchedulePeriodSet("monday", 1, 600, 900, 20.0);
+
+        assertNotNull(schedule);
+        assertEquals(2, schedule.entries[0].length);
+    }
+
+    @Test
+    void dhwSchedulePeriodSetRejectsOverlapWithAnotherPeriodOnTheSameDay() throws ReflectiveOperationException {
+        double[][][] entries = new double[7][][];
+        entries[4] = new double[][] { { 0, 360, 45.0 }, { 360, 1260, 50.0 } };
+        seedLastDhwScheduleEntries(entries);
+        seedState(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE, new QuantityType<>(48.0, SIUnits.CELSIUS));
+
+        assertNull(handler.composeDhwSchedulePeriodSet("friday", 0, 100, 500, 55.0));
     }
 
     @Test
