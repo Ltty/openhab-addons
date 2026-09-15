@@ -585,6 +585,51 @@ soon as the JSON is parsed, validated, and handed to `sendComposedChSchedule`/`s
 wanting write confirmation watches the `schedule` channel, which (per the point above) now updates
 within about a second of the device's acknowledgement rather than waiting for the next poll interval.
 
+**Overlap rejection on all four schedule-write actions (2026-09-15, Indoor page spec §D).** Driven by
+the same UI's need for a server-side backstop: its own client-side overlap resolution only protects
+edits made through that one widget, and every write action here is directly callable over REST by
+anything, bypassing it entirely. Before this change, **no path — per-period or whole-schedule —
+checked for overlap at all**; `isValidPeriod` only bounds-checked a single period
+(`0 <= start < end <= 1440`), never compared two periods against each other. Confirmed by reading the
+source before starting, per the spec's own explicit ask to check first rather than assume.
+
+- New `ScheduleJson.periodsOverlap(aStart, aEnd, bStart, bEnd)`: half-open interval overlap test
+  (`aStart < bEnd && aEnd > bStart`), so a period ending exactly when the next starts is not an
+  overlap — matches the spec's definition exactly.
+- Whole-schedule path (`ScheduleJson.parseDayPeriods`): after parsing a weekday's periods, an O(n²)
+  pairwise check over just that day's array (bounded by `MAX_PERIODS_PER_DAY` = 100, so at most 4950
+  comparisons) rejects the whole write if any two overlap. Scoped to the day(s) actually present in
+  the input JSON — a day resent unchanged from the last poll isn't re-validated, since that's already
+  live device data from a successful poll, not new caller input.
+- Per-period path (new `AtagOneHandler.overlapsAnyOtherPeriod`): compares the new/edited period
+  against every *other* period already on that weekday, excluding the slot at `periodIndex` itself —
+  otherwise replacing a period with a slightly-shifted version of itself would always "overlap" its
+  own prior value. The same exclusion-by-index trick handles append (`periodIndex ==
+  dayEntries.length`) for free: nothing in the loop ever matches an index that doesn't exist yet, so
+  an appended period is compared against the whole day with nothing excluded.
+- **Reject, never resolve** — both paths return `null` (actions return `false`) on a conflict, no
+  trimming or reordering. Per the spec: deciding *how* to resolve a conflict is a UI-policy decision,
+  not the binding's to make; the UI already does its own resolution before ever calling these actions,
+  this exists purely as a backstop for callers that don't.
+- **Answering the spec's "what error type/message" question:** there isn't a distinct one. This
+  binding's entire write-validation surface — unknown weekday, out-of-range index, malformed JSON,
+  invalid bounds, and now overlap — collapses to the same generic `null`/`false` rejection signal
+  it already used for everything else; introducing a dedicated exception type or error code for just
+  this one failure mode would be inconsistent with how every other rejection on these four actions
+  already works, and wasn't asked for beyond "note it here." Documented in the `@RuleAction`
+  descriptions and README so this is discoverable without reading source, but a caller that needs to
+  distinguish "overlap" from "any other rejection reason" cannot do so via the return value alone —
+  it has to pre-check its own input against `heating#schedule`/`hotwater#schedule` first, same as it
+  already must for the other rejection cases.
+- Hardening cap interaction: `MAX_PERIODS_PER_DAY` (from the previous round's hardening pass) is
+  checked before the overlap loop runs, not after — an oversized period array is rejected for size
+  before ever paying for the pairwise comparison.
+
+Not yet live-gated — no device write is required to exercise this (it's pure input validation, same
+class of change as the earlier bounds/malformed-input checks), but it's untested against how the real
+`atag_schedule_card` UI's own overlap-resolved input behaves once it starts calling the whole-schedule
+actions (its own follow-up, tracked in the Indoor page project, not this binding).
+
 ---
 
 ## Write semantics
