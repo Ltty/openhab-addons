@@ -91,6 +91,11 @@ does). The `boilerDetectType` Thing property was removed too — it was never ac
 a boiler _type_ rather than a detection-method flag, and no mapping to a real model name (e.g.
 "A160S") was ever found. `device#language` is now writable.
 
+**New this release, not breaking but needs the same jar-swap-alone-isn't-enough redeploy as
+above to actually appear:** `heating#schedule` and `hotwater#schedule`, two read-only channels
+publishing the full week's schedule as JSON. See [Actions](#actions) for the matching
+`setChSchedule`/`setDhwSchedule` whole-week write actions.
+
 ## Thing Properties
 
 Populated from the device once it's paired, matching the portal's Account → Devices screen:
@@ -148,6 +153,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `heating#burning-hours` | `Number:Time` | R | Total burner hours |
 | `heating#time-to-target` | `Number:Time` | R | Estimated time to reach target temperature |
 | `heating#schedule-base-temperature` | `Number:Temperature` | RW | Central heating schedule's fallback temperature (advanced) |
+| `heating#schedule` | `String` | R | Full central heating week schedule as JSON (advanced) |
 | `heating#frost-protection` | `String` | RW | Which sensor(s) frost protection uses: `off`, `outside`, `inside`, `both` (advanced) |
 | `heating#frost-protection-temperature-room` | `Number:Temperature` | RW | Indoor threshold below which frost protection activates, 4–10 °C (advanced) |
 | `heating#frost-protection-temperature-outside` | `Number:Temperature` | RW | Outdoor threshold below which frost protection activates, -10–5 °C (advanced) |
@@ -168,6 +174,7 @@ modes — the one cross-cutting exception, since a mode isn't specific to heatin
 | `hotwater#temperature` | `Number:Temperature` | R | Hot Water Temperature |
 | `hotwater#hot-water-active` | `Switch` | R | ON when the boiler is actively serving hot water demand |
 | `hotwater#schedule-base-temperature` | `Number:Temperature` | RW | Hot water schedule's fallback temperature — its bounds come from the device (10–65 °C on a combi boiler, wider on a system boiler with a 3-port valve kit) (advanced) |
+| `hotwater#schedule` | `String` | R | Full hot water week schedule as JSON (advanced) |
 | `hotwater#legionella-protection` | `Switch` | RW | Periodically heats the tank above a threshold to kill legionella bacteria (advanced) |
 | `hotwater#legionella-protection-day` | `String` | RW | Weekday legionella protection runs on (advanced) |
 | `hotwater#legionella-protection-time` | `String` | RW | Time of day legionella protection starts at, as `HH:mm` (advanced) |
@@ -272,10 +279,11 @@ binding logs a warning when this happens. The `cancelMode` action reports this e
 
 ## Actions
 
-The binding registers eight [Thing Actions](https://www.openhab.org/docs/configuration/rules-dsl.html#thing-actions)
+The binding registers ten [Thing Actions](https://www.openhab.org/docs/configuration/rules-dsl.html#thing-actions)
 under the `atagone` scope: four for activating or cancelling a mode with a custom duration in a single
 call, instead of the two-write channel pattern described above (set the duration channel, then
-`preset-mode`), and four for editing weekly schedules period-by-period, which no channel exposes at all.
+`preset-mode`); four for editing weekly schedules period-by-period, which no channel exposes at all;
+and two for replacing a whole week's schedule in one device write.
 
 | Action | Description |
 |--------|-------------|
@@ -287,6 +295,8 @@ call, instead of the two-write channel pattern described above (set the duration
 | `clearChSchedulePeriod(String weekday, int periodIndex)` | Removes one time period from a weekday's central heating schedule, shifting later periods down |
 | `setDhwSchedulePeriod(String weekday, int periodIndex, int startMinutes, int endMinutes, double temperatureCelsius)` | Same as `setChSchedulePeriod`, for the hot water schedule |
 | `clearDhwSchedulePeriod(String weekday, int periodIndex)` | Same as `clearChSchedulePeriod`, for the hot water schedule |
+| `setChSchedule(String json)` | Replaces the central heating schedule in one device write, same JSON shape as the `heating#schedule` channel |
+| `setDhwSchedule(String json)` | Same as `setChSchedule`, for the hot water schedule |
 
 Each activation/cancel action composes the same multi-field write the corresponding `preset-mode`
 channel value uses internally (e.g. `activateVacation` sets both `ch_mode` and the device's
@@ -300,11 +310,29 @@ two different, unrelated weekday numbering schemes internally, and a name sidest
 period changed; **writing a schedule has been observed to make the thermostat briefly unresponsive
 (around 100 seconds)**, so avoid calling these from a tight loop or in response to frequent events.
 
+`setChSchedule`/`setDhwSchedule` take the same JSON shape `heating#schedule`/`hotwater#schedule`
+publish:
+
+```json
+{"baseTemp":22.5,"days":{"monday":[{"start":360,"end":1260,"temp":20.5}],"tuesday":[],"wednesday":[],"thursday":[],"friday":[],"saturday":[],"sunday":[]}}
+```
+
+`start`/`end` are minutes since midnight, matching the per-period actions' own units. A weekday absent
+from `days` is resent unchanged from the last poll, so a caller only needs to name the day(s) it
+actually edited — the device still requires the whole schedule object on every write, the binding
+composes that from the JSON given plus what it last polled. `baseTemp` is optional and defaults to the
+current value. One call replaces up to a full week in a single device write, rather than one write per
+period at the firmware's 2-second minimum interval between requests. Both actions return `true` once
+the write is parsed, validated and queued — not once the device has confirmed it, since confirmation
+can take up to the ~100 s mentioned above; watch the corresponding `schedule` channel, which republishes
+as soon as the device acknowledges the write, to see the confirmed result.
+
 Example from a rule:
 
 ```javascript
 actions.thingActions("atagone", "atagone:thermostat:boiler").activateFireplace(7200);
 actions.thingActions("atagone", "atagone:thermostat:boiler").setChSchedulePeriod("monday", 0, 360, 1320, 20.0);
+actions.thingActions("atagone", "atagone:thermostat:boiler").setChSchedule('{"days":{"monday":[{"start":360,"end":1320,"temp":20.0}]}}');
 ```
 
 ## Full example

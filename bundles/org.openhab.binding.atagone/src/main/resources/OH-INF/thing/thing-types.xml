@@ -71,6 +71,7 @@
 			<channel id="boiler-temperature" typeId="boiler-temperature"/>
 			<channel id="boiler-return-temperature" typeId="boiler-return-temperature"/>
 			<channel id="schedule-base-temperature" typeId="ch-schedule-base-temperature"/>
+			<channel id="schedule" typeId="ch-schedule"/>
 			<channel id="frost-protection" typeId="frost-protection"/>
 			<channel id="frost-protection-temperature-room" typeId="frost-protection-temperature-room"/>
 			<channel id="frost-protection-temperature-outside" typeId="frost-protection-temperature-outside"/>
@@ -94,6 +95,7 @@
 			<channel id="flow-rate" typeId="dhw-flow-rate"/>
 			<channel id="hot-water-active" typeId="hot-water-active"/>
 			<channel id="schedule-base-temperature" typeId="dhw-schedule-base-temperature"/>
+			<channel id="schedule" typeId="dhw-schedule"/>
 			<channel id="legionella-protection" typeId="legionella-protection"/>
 			<channel id="legionella-protection-day" typeId="legionella-protection-day"/>
 			<channel id="legionella-protection-time" typeId="legionella-protection-time"/>
@@ -211,6 +213,13 @@
 		<state pattern="%.1f %unit%" min="4" max="27" step="0.5"/>
 	</channel-type>
 
+	<channel-type id="ch-schedule" advanced="true">
+		<item-type>String</item-type>
+		<label>Schedule</label>
+		<description>Full central heating week schedule as JSON, for a rule or UI to read and compose edits from.</description>
+		<state readOnly="true"/>
+	</channel-type>
+
 	<channel-type id="ch-setpoint" advanced="true">
 		<item-type>Number:Temperature</item-type>
 		<label>Boiler Target Water Temperature</label>
@@ -244,6 +253,13 @@
 			<tag>Temperature</tag>
 		</tags>
 		<state pattern="%.1f %unit%" min="10" max="65" step="0.5"/>
+	</channel-type>
+
+	<channel-type id="dhw-schedule" advanced="true">
+		<item-type>String</item-type>
+		<label>Schedule</label>
+		<description>Full hot water week schedule as JSON, for a rule or UI to read and compose edits from.</description>
+		<state readOnly="true"/>
 	</channel-type>
 
 	<channel-type id="dhw-target-temperature">

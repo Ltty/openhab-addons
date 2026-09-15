@@ -348,7 +348,18 @@ public class AtagOneHandler extends BaseThingHandler {
         return schedule;
     }
 
-    /** Sends a CH schedule update and restarts polling afterwards, mirroring {@link #sendControlUpdate}. */
+    /**
+     * Sends a CH schedule update and restarts polling afterwards, mirroring {@link #sendControlUpdate}.
+     * <p>
+     * On a device-acknowledged write ({@code acc_status == 2}, verified by
+     * {@link AtagOneApiClient#updateChSchedule}, which throws otherwise), adopts the sent schedule as
+     * {@link #lastChScheduleEntries} and republishes {@code heating#schedule} immediately, rather than
+     * waiting for the next poll. This matters because writing {@code entries} (unlike {@code base_temp}
+     * alone) is documented to leave the device unresponsive for 10–100 s — well past
+     * {@link #POST_COMMAND_DELAY_S}'s fast re-poll — so without this, the channel would go stale for
+     * that whole window, and a second rapid edit would compose against pre-write data and silently lose
+     * the first one.
+     */
     private void sendChScheduleUpdate(AtagOneApiClient client, ScheduleDTO schedule) {
         if (disposing) {
             return;
@@ -357,6 +368,10 @@ public class AtagOneHandler extends BaseThingHandler {
             stopPollJob();
             try {
                 client.updateChSchedule(schedule);
+                lastChScheduleEntries = schedule.entries;
+                updateIfChanged(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE,
+                        new QuantityType<>(schedule.base_temp, SIUnits.CELSIUS));
+                publishSchedule(CHANNEL_CH_SCHEDULE, schedule.base_temp, schedule.entries);
             } catch (AtagOneCommunicationException e) {
                 logger.warn("CH schedule update failed: {}", e.getMessage());
             } catch (RuntimeException e) {
@@ -389,7 +404,7 @@ public class AtagOneHandler extends BaseThingHandler {
         return schedule;
     }
 
-    /** Sends a DHW schedule update and restarts polling afterwards, mirroring {@link #sendControlUpdate}. */
+    /** Sends a DHW schedule update and restarts polling afterwards — mirrors {@link #sendChScheduleUpdate}. */
     private void sendDhwScheduleUpdate(AtagOneApiClient client, ScheduleDTO schedule) {
         if (disposing) {
             return;
@@ -398,6 +413,10 @@ public class AtagOneHandler extends BaseThingHandler {
             stopPollJob();
             try {
                 client.updateDhwSchedule(schedule);
+                lastDhwScheduleEntries = schedule.entries;
+                updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
+                        new QuantityType<>(schedule.base_temp, SIUnits.CELSIUS));
+                publishSchedule(CHANNEL_DHW_SCHEDULE, schedule.base_temp, schedule.entries);
             } catch (AtagOneCommunicationException e) {
                 logger.warn("DHW schedule update failed: {}", e.getMessage());
             } catch (RuntimeException e) {
@@ -491,6 +510,42 @@ public class AtagOneHandler extends BaseThingHandler {
     }
 
     /**
+     * Composes a whole-week CH schedule write from {@link ScheduleJson}-shaped input, one device write
+     * for the whole week instead of the per-period actions' one-write-per-period. Weekdays the JSON
+     * doesn't name are resent unchanged from the last poll.
+     *
+     * @return the composed schedule, or {@code null} if the JSON is malformed or no prior poll has
+     *         captured the current CH schedule yet
+     */
+    @Nullable
+    public ScheduleDTO composeChScheduleFromJson(String json) {
+        return composeScheduleFromJson(json, lastChScheduleEntries, CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE);
+    }
+
+    /** Composes a whole-week DHW schedule write — mirrors {@link #composeChScheduleFromJson}. */
+    @Nullable
+    public ScheduleDTO composeDhwScheduleFromJson(String json) {
+        return composeScheduleFromJson(json, lastDhwScheduleEntries, CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE);
+    }
+
+    @Nullable
+    private ScheduleDTO composeScheduleFromJson(String json, double @Nullable [][][] lastEntries,
+            String baseTempChannel) {
+        if (lastEntries == null) {
+            return null;
+        }
+        State storedBaseTemp = stateMap.get(baseTempChannel);
+        if (!(storedBaseTemp instanceof QuantityType<?> qt)) {
+            return null;
+        }
+        QuantityType<?> celsius = qt.toUnit(SIUnits.CELSIUS);
+        if (celsius == null) {
+            return null;
+        }
+        return ScheduleJson.parse(json, celsius.doubleValue(), lastEntries);
+    }
+
+    /**
      * Shared mutation for the four {@code composeXxxSchedulePeriodYyy} methods above. {@code newPeriod}
      * being {@code null} means "clear the period at {@code periodIndex}"; otherwise it replaces (or, if
      * {@code periodIndex} equals the day's current length, appends) that period. {@code weekday} is a
@@ -516,7 +571,7 @@ public class AtagOneHandler extends BaseThingHandler {
         }
         double[][] updatedDay;
         if (newPeriod != null) {
-            if (periodIndex > dayEntries.length) {
+            if (periodIndex > dayEntries.length || !ScheduleJson.isValidPeriod(newPeriod[0], newPeriod[1])) {
                 return null;
             }
             updatedDay = periodIndex < dayEntries.length ? dayEntries.clone()
@@ -1282,9 +1337,11 @@ public class AtagOneHandler extends BaseThingHandler {
         updateIfChanged(CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.ch_schedule.base_temp, SIUnits.CELSIUS));
         lastChScheduleEntries = r.schedules.ch_schedule.entries;
+        publishSchedule(CHANNEL_CH_SCHEDULE, r.schedules.ch_schedule.base_temp, r.schedules.ch_schedule.entries);
         updateIfChanged(CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE,
                 new QuantityType<>(r.schedules.dhw_schedule.base_temp, SIUnits.CELSIUS));
         lastDhwScheduleEntries = r.schedules.dhw_schedule.entries;
+        publishSchedule(CHANNEL_DHW_SCHEDULE, r.schedules.dhw_schedule.base_temp, r.schedules.dhw_schedule.entries);
         updateNextScheduleChannels(r.schedules.ch_schedule.entries, ZonedDateTime.now());
 
         // Control — setpoints and modes
@@ -1386,6 +1443,19 @@ public class AtagOneHandler extends BaseThingHandler {
         if (!state.equals(previous)) {
             updateState(channelId, state);
         }
+    }
+
+    /**
+     * Publishes the full-week JSON schedule ({@link ScheduleJson}) for {@code heating#schedule} /
+     * {@code hotwater#schedule}. {@code UNDEF} until the first successful poll has actually captured
+     * a schedule — an empty week would otherwise be indistinguishable from "no schedule configured".
+     */
+    private void publishSchedule(String channelId, double baseTemp, double @Nullable [][][] entries) {
+        if (entries == null) {
+            updateIfChanged(channelId, UnDefType.UNDEF);
+            return;
+        }
+        updateIfChanged(channelId, new StringType(ScheduleJson.toJson(baseTemp, entries)));
     }
 
     private void goOnline() {

@@ -83,6 +83,8 @@ public class AtagOneBindingConstants {
     public static final String CHANNEL_RESETS = "device#resets";
     public static final String CHANNEL_CH_SCHEDULE_BASE_TEMPERATURE = "heating#schedule-base-temperature";
     public static final String CHANNEL_DHW_SCHEDULE_BASE_TEMPERATURE = "hotwater#schedule-base-temperature";
+    public static final String CHANNEL_CH_SCHEDULE = "heating#schedule";
+    public static final String CHANNEL_DHW_SCHEDULE = "hotwater#schedule";
 
     // Settings channels (Phase F) — advanced="true", set-once configuration, not everyday channels.
     public static final String CHANNEL_FROST_PROTECTION = "heating#frost-protection";
