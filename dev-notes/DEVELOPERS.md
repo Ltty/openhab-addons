@@ -630,6 +630,65 @@ class of change as the earlier bounds/malformed-input checks), but it's untested
 `atag_schedule_card` UI's own overlap-resolved input behaves once it starts calling the whole-schedule
 actions (its own follow-up, tracked in the Indoor page project, not this binding).
 
+**CRITICAL — entries write silently wipes the schedule to empty, root-caused and fixed
+(2026-09-16).** A live-gate test of the post-ack-republish change above (a single-value
+`setChSchedulePeriod` edit) reported success (`acc_status:2`) but a follow-up *independent* `/retrieve`
+— bypass curl, not the binding's own read-back — showed `ch_schedule.entries` wiped to `[[],[],[],[],[],[],[]]`
+on every day. `resets` did **not** increment and `device_errors` stayed empty, so nothing about the
+device's own health signals flagged this — the only way to catch it was an independent read-back that
+didn't trust the write's own "success."
+
+Root cause: `ScheduleDTO.entries` is `double[][][]` because a period's three positions
+(`start`/`end`/`temp`) have no separate Java fields to carry distinct types. Gson's default double
+serialization has no way to know that only `temp` is meant to be fractional, so it emitted every
+position identically — `[0.0,240.0,20.5]` — where the device's own wire format, confirmed by every
+`/retrieve` reply and every previously-working write in this project, is `[0,240,20.5]`: bare integers
+for `start`/`end`, a float only for `temp`. The device accepts the malformed request, silently no-ops
+it (wiping to empty rather than rejecting or leaving the old schedule alone), and still reports
+`acc_status:2` — indistinguishable from a real success without an independent check.
+
+Confirmed via direct methodology, not guesswork: the exact TRACE-logged request the binding sent was
+captured, then replayed character-for-character via raw curl to isolate the float-vs-integer question
+from everything else in the binding's request pipeline (the composed `entries` content, the envelope
+shape, the transport layer) — no other difference exists between the binding's request and a
+known-good one. This also ruled out two earlier hypotheses from this same investigation: a stray
+`device_id` field in the envelope (never actually present in this binding's code, confirmed by
+grepping `AtagOneApiClient.java` — that theory didn't apply here even though it may be a real issue for
+some other client) and a named-object vs. positional-array structure mismatch (ruled out because the
+positional-array shape is exactly what the device emits on every read, and was itself the same shape
+the 2026-09-13 test below used).
+
+**Fix:** `AtagOneApiClient.scheduleToJson()` builds the schedule's JSON by hand instead of via
+`gson.toJsonTree(schedule)`, casting `start`/`end` to `long` and leaving `temp` as-is. Confined
+entirely to the serialization boundary in `AtagOneApiClient` — `ScheduleDTO`'s field stays
+`double[][][]`, and none of `AtagOneHandler`'s compose logic, `ScheduleJson`, or any existing test
+literals needed to change, since the read/deserialization path was never affected (Gson parses a JSON
+integer into a `double` field with no loss, regardless of which way the device formats it — only
+*writing* got this wrong). Covered by two new unit tests in `AtagOneApiClientValidationTest`, asserting
+the exact string shape (`[0,240,20.5]`, never `0.0`) and that empty/null day slots serialize safely.
+
+**Open question, not fully resolved:** the 2026-09-13 per-period live test above (`setChSchedulePeriod`,
+Monday, append and replace) reports success verified via an independent `/retrieve` — "all other 6 days
+and `base_temp` byte-for-byte unchanged." That test used the exact same buggy `double[][][]`
+serialization (unchanged in this codebase since long before this session), so by the theory above it
+should have hit the identical failure. It's not yet clear why it didn't. The two tests differ in one
+concrete way: 2026-09-13 touched only Monday, with every other day already empty at the time (per the
+HAR baseline captured separately); 2026-09-16's failing test wrote real, non-empty period data to all 7
+days simultaneously. One plausible reconciliation is that the device's parser only chokes on the
+float-formatting defect when multiple days carry real (non-empty) float-formatted data in the same
+request — an empty day has no numbers to mis-parse, so a single-changed-day write with the rest
+genuinely empty may have simply never exercised the bug. This is a plausible theory, not a confirmed
+one — the fix is correct and worth keeping regardless of which theory is right, since it makes every
+write match the device's own confirmed wire format instead of leaving this ambiguity open, but the
+2026-09-13 result shouldn't be read as having ruled out the serialization defect at the time; it may
+simply not have triggered it.
+
+**Recommended follow-up live gate:** repeat the exact scenario that failed on 2026-09-16 (writing real
+data to all 7 days in one request) with this fix applied, and confirm via independent bypass-curl
+`/retrieve` — not the binding's own state — that it now lands correctly. That's the direct,
+falsifiable test of this fix; nothing here should be treated as confirmed-fixed on the live device
+until that's run.
+
 ---
 
 ## Write semantics
