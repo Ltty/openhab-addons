@@ -52,7 +52,6 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES = Set.of(THING_TYPE_THERMOSTAT);
 
     private static final int DISCOVERY_PORT = 11000;
-    /** Socket timeout — device broadcasts every ~10 s, so 15 s gives at least one window. */
     private static final int SOCKET_TIMEOUT_MS = 15_000;
     private static final int MANUAL_DISCOVERY_TIME_S = 30;
     private static final int BACKGROUND_SCAN_INTERVAL_S = 30;
@@ -154,8 +153,7 @@ public class AtagOneDiscoveryService extends AbstractDiscoveryService {
             }
         }
 
-        // Payload: "<device_id> (ST)" — device ID is the first space-delimited token; suffix is a status indicator;
-        // null bytes pad to 37 bytes.
+        // Payload: "<device_id> (ST)" — device ID is the first space-delimited token; suffix is a status indicator; null bytes pad to 37 bytes.
         String rest = new String(data, BROADCAST_PREFIX.length, length - BROADCAST_PREFIX.length,
                 StandardCharsets.US_ASCII).replace("\0", "").trim();
         String deviceId = rest.contains(" ") ? rest.substring(0, rest.indexOf(' ')) : rest;

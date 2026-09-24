@@ -216,8 +216,7 @@ public class AtagOneApiClient {
         logger.debug("updateSchedule({}) succeeded", key);
     }
 
-    // Device requires integer start/end in entries ([0,240,20.5]); Gson's float serialization silently wipes the
-    // schedule.
+    // Device requires integer start/end in entries ([0,240,20.5]); Gson's float serialization silently wipes the schedule.
     static JsonObject scheduleToJson(ScheduleDTO schedule) {
         JsonObject obj = new JsonObject();
         obj.addProperty("base_temp", schedule.base_temp);
@@ -251,8 +250,7 @@ public class AtagOneApiClient {
             }
         }
 
-        // HTTP/1.0 device: Jetty may reuse a stale pooled connection, producing a spurious EOFException on first
-        // attempt.
+        // HTTP/1.0 device: Jetty may reuse a stale pooled connection, producing an EOFException on first attempt.
         boolean staleCorrectionUsed = false;
         Exception lastException = new AtagOneCommunicationException("Unreachable");
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {

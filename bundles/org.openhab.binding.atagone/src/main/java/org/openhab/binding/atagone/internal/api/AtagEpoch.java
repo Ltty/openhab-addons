@@ -27,7 +27,7 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 @NonNullByDefault
 public final class AtagEpoch {
 
-    /** Seconds between Unix epoch (1970-01-01 UTC) and ATAG epoch (2000-01-01 UTC). */
+    // Seconds between Unix epoch (1970-01-01 UTC) and ATAG epoch (2000-01-01 UTC).
     public static final long OFFSET = 946684800L;
 
     private AtagEpoch() {

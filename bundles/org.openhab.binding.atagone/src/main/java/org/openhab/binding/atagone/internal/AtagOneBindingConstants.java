@@ -110,15 +110,12 @@ public class AtagOneBindingConstants {
     public static final int CH_MODE_EXTEND = 4;
     public static final int CH_MODE_FIREPLACE = 5;
 
-    // ch_control_mode is independent of ch_mode — it's a separate "Weather control" thermostat setting.
     public static final int CH_CONTROL_MODE_ROOM = 0;
     public static final int CH_CONTROL_MODE_WEATHER = 1;
 
-    // Bit assignments live-verified and corroborated against kozmoz/atag-one-api wiki (see dev-notes).
     public static final int BOILER_STATUS_CH_ACTIVE = 0x002;
     public static final int BOILER_STATUS_DHW_ACTIVE = 0x004;
     public static final int BOILER_STATUS_FLAME = 0x008;
-    // Not an activity flag — indicates which schedule is governing; 0x200 = dhw_schema.
     public static final int BOILER_STATUS_CH_SCHEMA = 0x100;
     public static final int BOILER_STATUS_DHW_SCHEMA = 0x200;
 
@@ -161,7 +158,6 @@ public class AtagOneBindingConstants {
     public static final Map<String, Integer> WDR_TEMPERATURE_INFLUENCE_BY_NAME = Map.of("off", 0, "less", 1, "medium",
             2, "more", 3, "room-control", 4);
 
-    /** Verified live 2026-09-13: Off/1h/2h/3h/Automatic map to 0/60/120/180/1440 minutes. */
     public static final Map<Integer, String> MAX_PREHEAT_NAMES = Map.of(0, "off", 60, "1h", 120, "2h", 180, "3h", 1440,
             "automatic");
     public static final Map<String, Integer> MAX_PREHEAT_BY_NAME = Map.of("off", 0, "1h", 60, "2h", 120, "3h", 180,
@@ -174,7 +170,6 @@ public class AtagOneBindingConstants {
             Map.entry("tuesday", 2), Map.entry("wednesday", 3), Map.entry("thursday", 4), Map.entry("friday", 5),
             Map.entry("saturday", 6), Map.entry("sunday", 7));
 
-    // Only 1=Berlin device-confirmed; others follow app/portal dropdown order, not individually live-tested.
     public static final Map<Integer, String> TIME_ZONE_NAMES = Map.ofEntries(Map.entry(0, "amsterdam"),
             Map.entry(1, "berlin"), Map.entry(2, "brussels"), Map.entry(3, "dublin"), Map.entry(4, "edinburgh"),
             Map.entry(5, "frankfurt"), Map.entry(6, "london"), Map.entry(7, "luxembourg"), Map.entry(8, "paris"),
@@ -184,7 +179,6 @@ public class AtagOneBindingConstants {
             Map.entry("frankfurt", 5), Map.entry("london", 6), Map.entry("luxembourg", 7), Map.entry("paris", 8),
             Map.entry("rome", 9));
 
-    /** Verified 2026-09-13: the app's language dropdown is 0-indexed; index 4 confirmed German on this device. */
     public static final Map<Integer, String> LANGUAGE_NAMES = Map.of(0, "english", 1, "dutch", 2, "french", 3,
             "italian", 4, "german");
     public static final Map<String, Integer> LANGUAGE_BY_NAME = Map.of("english", 0, "dutch", 1, "french", 2, "italian",
