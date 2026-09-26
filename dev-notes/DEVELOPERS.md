@@ -78,6 +78,18 @@ intermittent instability observed during that testing.
 | Background scan interval | 30 s (`BACKGROUND_SCAN_INTERVAL_S`) |
 | Manual scan window | 30 s (`MANUAL_DISCOVERY_TIME_S`), socket timeout 15 s (`SOCKET_TIMEOUT_MS`) |
 
+**Known issue, VERIFIED 2026-09-26** (reproduced twice, live testing for PR #21481's third review
+round): `discovery.atagone`'s `backgroundDiscovery=false` service config does not stop the
+background UDP scan at runtime — `AtagOneDiscoveryService` log lines kept appearing after the
+config was set both times. This matters beyond the toggle itself: `announce()` builds its
+`DiscoveryResult` keyed on `PROPERTY_DEVICE_ID` (stable regardless of hostname) and includes the
+current `hostname` in its properties, so as long as the scan keeps running, rediscovering the same
+physical device can silently update an already-registered Thing's `hostname` config back to the
+device's real IP. Usually the desired self-healing behavior on a genuine IP change, but it's a real
+confound for testing anything in the lifecycle/reconnect path with a deliberately wrong hostname —
+isolating such a test requires blocking UDP port 11000 at the firewall, not just the config toggle.
+Root cause not investigated; not fixed in this round.
+
 ## Endpoints
 
 ### `POST /pair`
