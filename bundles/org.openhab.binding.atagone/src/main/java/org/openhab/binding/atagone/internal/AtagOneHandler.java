@@ -280,11 +280,19 @@ public class AtagOneHandler extends BaseThingHandler {
         stopPollJob();
         try {
             client.updateControl(control, hasConfig ? configUpdate : null);
-            if (generation == myGeneration && control.ch_mode != null
-                    && (control.ch_mode == CH_MODE_HOLIDAY || control.ch_mode == CH_MODE_FIREPLACE)) {
-                suppressCommErrorUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
-                logger.debug("Timed preset (ch_mode={}) sent — suppressing COMMUNICATION_ERROR for 5 min",
-                        control.ch_mode);
+            if (generation == myGeneration) {
+                if (hasConfig) {
+                    DeviceConfigDTO config = lastConfiguration;
+                    if (config != null) {
+                        lastConfiguration = applyConfigUpdate(config, configUpdate);
+                    }
+                }
+                if (control.ch_mode != null
+                        && (control.ch_mode == CH_MODE_HOLIDAY || control.ch_mode == CH_MODE_FIREPLACE)) {
+                    suppressCommErrorUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
+                    logger.debug("Timed preset (ch_mode={}) sent — suppressing COMMUNICATION_ERROR for 5 min",
+                            control.ch_mode);
+                }
             }
         } catch (AtagOneCommunicationException e) {
             logger.warn("Command failed for {}: {}", channelId, e.getMessage());
@@ -894,6 +902,61 @@ public class AtagOneHandler extends BaseThingHandler {
         configDto.dhw_legion_day = config.dhw_legion_day;
         configDto.dhw_legion_time = config.dhw_legion_time;
         return true;
+    }
+
+    private static DeviceConfigDTO applyConfigUpdate(DeviceConfigDTO base, DeviceConfigUpdateDTO update) {
+        DeviceConfigDTO merged = new DeviceConfigDTO();
+        merged.ch_min_set = base.ch_min_set;
+        merged.ch_max_set = base.ch_max_set;
+        merged.dhw_min_set = base.dhw_min_set;
+        merged.dhw_max_set = base.dhw_max_set;
+        merged.ch_temp_max = base.ch_temp_max;
+        merged.ch_vacation_temp = update.ch_vacation_temp != null ? update.ch_vacation_temp : base.ch_vacation_temp;
+        merged.start_vacation = update.start_vacation != null ? update.start_vacation : base.start_vacation;
+        merged.ch_mode_vacation = update.ch_mode_vacation != null ? update.ch_mode_vacation : base.ch_mode_vacation;
+        merged.ch_mode_extend = update.ch_mode_extend != null ? update.ch_mode_extend : base.ch_mode_extend;
+        merged.frost_prot_enabled = update.frost_prot_enabled != null ? update.frost_prot_enabled
+                : base.frost_prot_enabled;
+        merged.frost_prot_temp_outs = update.frost_prot_temp_outs != null ? update.frost_prot_temp_outs
+                : base.frost_prot_temp_outs;
+        merged.frost_prot_temp_room = update.frost_prot_temp_room != null ? update.frost_prot_temp_room
+                : base.frost_prot_temp_room;
+        merged.summer_eco_mode = update.summer_eco_mode != null ? update.summer_eco_mode : base.summer_eco_mode;
+        merged.summer_eco_temp = update.summer_eco_temp != null ? update.summer_eco_temp : base.summer_eco_temp;
+        merged.dhw_legion_enabled = update.dhw_legion_enabled != null ? update.dhw_legion_enabled
+                : base.dhw_legion_enabled;
+        merged.dhw_legion_day = update.dhw_legion_day != null ? update.dhw_legion_day : base.dhw_legion_day;
+        merged.dhw_legion_time = update.dhw_legion_time != null ? update.dhw_legion_time : base.dhw_legion_time;
+        merged.disp_brightness = update.disp_brightness != null ? update.disp_brightness : base.disp_brightness;
+        merged.language = update.language != null ? update.language : base.language;
+        merged.temp_unit = base.temp_unit;
+        merged.pressure_unit = base.pressure_unit;
+        merged.time_format = base.time_format;
+        merged.time_zone = update.time_zone != null ? update.time_zone : base.time_zone;
+        merged.room_temp_offs = update.room_temp_offs != null ? update.room_temp_offs : base.room_temp_offs;
+        merged.outs_temp_offs = update.outs_temp_offs != null ? update.outs_temp_offs : base.outs_temp_offs;
+        merged.wd_k_factor = base.wd_k_factor;
+        merged.wd_exponent = base.wd_exponent;
+        merged.wd_temp_offs = update.wd_temp_offs != null ? update.wd_temp_offs : base.wd_temp_offs;
+        merged.wdr_temps_influence = update.wdr_temps_influence != null ? update.wdr_temps_influence
+                : base.wdr_temps_influence;
+        merged.climate_zone = update.climate_zone != null ? update.climate_zone : base.climate_zone;
+        merged.privacy_mode = update.privacy_mode != null ? update.privacy_mode : base.privacy_mode;
+        merged.boiler_id = base.boiler_id;
+        merged.installer_id = base.installer_id;
+        merged.boiler_det_type = base.boiler_det_type;
+        merged.dhw_boiler_cap = base.dhw_boiler_cap;
+        merged.max_preheat = update.max_preheat != null ? update.max_preheat : base.max_preheat;
+        merged.ch_building_size = update.ch_building_size != null ? update.ch_building_size : base.ch_building_size;
+        merged.ch_heating_type = update.ch_heating_type != null ? update.ch_heating_type : base.ch_heating_type;
+        merged.ch_isolation = update.ch_isolation != null ? update.ch_isolation : base.ch_isolation;
+        merged.mu = base.mu;
+        merged.shower_time_mode = base.shower_time_mode;
+        merged.comfort_settings = base.comfort_settings;
+        merged.report_url = base.report_url;
+        merged.download_url = base.download_url;
+        merged.support_contact = base.support_contact;
+        return merged;
     }
 
     void composeManualActivation(ControlUpdateDTO dto) {
