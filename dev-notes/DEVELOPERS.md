@@ -490,6 +490,8 @@ unrelated `configuration.dhw_legion_day` field, see the Gap analysis table above
 name sidesteps that ambiguity for anyone calling these actions rather than risking the two being
 confused.
 
+**Action units (2026-10-29).** The action layer takes human units and converts before calling the handler, which stays in seconds and minutes since midnight: vacation `int days`, extend `int minutes` (multiple of 15), fireplace `int hours`; period actions take `LocalTime` start/end (end `00:00` means 1440) plus `"HH:mm"` String overloads for scripts. Period actions are keyed by start time, not index: `setXSchedulePeriod` replaces the period with the same start, trims the end of an earlier period that runs past the new start (what the web UI does), keeps the day sorted by start, and rejects overlap with a later period or a period that would need splitting; `clearXSchedulePeriod` removes the period starting at the given time. The JSON actions keep minutes since midnight, never trim, and are `visibility = EXPERT`.
+
 **Verification status: VERIFIED live, 2026-09-13.** The compose logic (period replace/append/remove,
 bounds checking, unknown-weekday/no-prior-poll rejection, a null day-entries slot rejected gracefully
 rather than throwing) is covered by tests in `AtagOneHandlerTest` and `AtagOneActionsTest`. Live-tested
